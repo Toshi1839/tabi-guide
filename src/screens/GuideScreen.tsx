@@ -25,10 +25,10 @@ if (Platform.OS !== 'web') {
   PROVIDER_DEFAULT = Maps.PROVIDER_DEFAULT;
 }
 import { Spot, SpotCategory } from '../types';
-import { SAMPLE_SPOTS } from '../data/sample-spots';
 import { CATEGORIES } from '../data/categories';
 import { LocationService, getDistance } from '../services/location';
 import { SpeechService } from '../services/speech';
+import { fetchNearbySpots } from '../services/spots-api';
 import SpotCard from '../components/SpotCard';
 
 interface Props {
@@ -43,14 +43,12 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [isGuiding, setIsGuiding] = useState(true);
+  const [nearbySpots, setNearbySpots] = useState<Spot[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const mapRef = useRef<any>(null);
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const watchRef = useRef<Location.LocationSubscription | null>(null);
-
-  // フィルタリングされたスポット
-  const filteredSpots = SAMPLE_SPOTS.filter((s) =>
-    selectedCategories.includes(s.category)
-  );
+  const lastFetchPos = useRef<{ lat: number; lng: number } | null>(null);
 
   // 位置情報の監視開始
   useEffect(() => {
@@ -67,6 +65,13 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
       const current = await LocationService.getCurrentLocation();
       if (current && mounted) {
         setLocation(current);
+        // 地図を現在地に移動
+        mapRef.current?.animateToRegion({
+          latitude: current.coords.latitude,
+          longitude: current.coords.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }, 1000);
       }
 
       // 位置情報の継続監視（近接検知用）
@@ -91,13 +96,36 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
     };
   }, []);
 
-  // 位置が変わるたびに近接チェック
+  // 位置が変わるたびにスポットを取得 + 近接チェック
   useEffect(() => {
-    if (!location || !isGuiding || activeSpot) return;
+    if (!location) return;
 
     const { latitude, longitude } = location.coords;
 
-    for (const spot of filteredSpots) {
+    // 200m以上移動したらスポットを再取得
+    const shouldFetch =
+      !lastFetchPos.current ||
+      getDistance(
+        latitude,
+        longitude,
+        lastFetchPos.current.lat,
+        lastFetchPos.current.lng
+      ) > 200;
+
+    if (shouldFetch && !isLoading) {
+      setIsLoading(true);
+      lastFetchPos.current = { lat: latitude, lng: longitude };
+
+      fetchNearbySpots(latitude, longitude, 2000, selectedCategories)
+        .then((spots) => {
+          setNearbySpots(spots);
+        })
+        .finally(() => setIsLoading(false));
+    }
+
+    // 近接チェック
+    if (!isGuiding || activeSpot) return;
+    for (const spot of nearbySpots) {
       if (visitedIds.has(spot.id)) continue;
 
       const distance = getDistance(latitude, longitude, spot.latitude, spot.longitude);
@@ -106,7 +134,7 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
         break;
       }
     }
-  }, [location, isGuiding, activeSpot, visitedIds]);
+  }, [location, isGuiding, activeSpot, visitedIds, selectedCategories]);
 
   // スポットカードの表示
   const triggerSpot = useCallback((spot: Spot) => {
@@ -120,9 +148,6 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
       tension: 40,
       friction: 8,
     }).start();
-
-    // 自動音声ガイド
-    SpeechService.speak(spot.audio_text);
   }, [slideAnim]);
 
   // スポットカードを閉じる
@@ -171,7 +196,7 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
               }
         }
       >
-        {filteredSpots.map((spot) => {
+        {nearbySpots.map((spot) => {
           const cat = getCategoryInfo(spot.category);
           const isVisited = visitedIds.has(spot.id);
           return (
@@ -181,13 +206,19 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
                   latitude: spot.latitude,
                   longitude: spot.longitude,
                 }}
-                title={spot.name}
-                description={spot.description}
                 opacity={isVisited ? 0.5 : 1}
+                onPress={() => {
+                  setActiveSpot(null);
+                  setTimeout(() => triggerSpot(spot), 100);
+                }}
               >
-                <View style={styles.markerContainer}>
+                <TouchableOpacity
+                  style={styles.markerContainer}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.markerEmoji}>{cat?.icon}</Text>
-                </View>
+                  <Text style={styles.markerLabel}>{spot.name}</Text>
+                </TouchableOpacity>
               </Marker>
               <Circle
                 center={{
@@ -210,11 +241,11 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
           <View style={styles.statusLeft}>
             <View style={[styles.statusDot, isGuiding && styles.statusDotActive]} />
             <Text style={styles.statusText}>
-              {isGuiding ? 'ガイド中' : '一時停止'}
+              {isLoading ? '読込中...' : isGuiding ? 'ガイド中' : '一時停止'}
             </Text>
           </View>
           <Text style={styles.visitCount}>
-            {visitedIds.size}/{filteredSpots.length}
+            {visitedIds.size}/{nearbySpots.length}
           </Text>
           <TouchableOpacity
             style={styles.stopButton}
@@ -224,6 +255,7 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
 
       {/* スポットカード（ボトムシート） */}
       {activeSpot && (
@@ -313,6 +345,13 @@ const styles = StyleSheet.create({
   },
   markerEmoji: {
     fontSize: 20,
+  },
+  markerLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#333',
+    maxWidth: 80,
+    textAlign: 'center',
   },
   cardContainer: {
     position: 'absolute',

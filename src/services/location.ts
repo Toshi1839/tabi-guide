@@ -1,25 +1,9 @@
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import { Spot } from '../types';
-
-const GEOFENCE_TASK = 'TABI_GUIDE_GEOFENCE';
-const LOCATION_TASK = 'TABI_GUIDE_BACKGROUND_LOCATION';
 
 type GeofenceCallback = (spot: Spot) => void;
 
 let onEnterCallbacks: GeofenceCallback[] = [];
-
-// ジオフェンスイベントのタスク定義
-TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: any) => {
-  if (error) {
-    console.error('Geofence task error:', error);
-    return;
-  }
-  if (data?.eventType === Location.GeofencingEventType.Enter) {
-    const region = data.region;
-    onEnterCallbacks.forEach((cb) => cb(region as any));
-  }
-});
 
 export const LocationService = {
   // 位置情報の権限リクエスト
@@ -27,8 +11,13 @@ export const LocationService = {
     const { status: foreground } = await Location.requestForegroundPermissionsAsync();
     if (foreground !== 'granted') return false;
 
-    const { status: background } = await Location.requestBackgroundPermissionsAsync();
-    return background === 'granted';
+    // バックグラウンド権限は任意（Expo Goでは失敗する場合がある）
+    try {
+      await Location.requestBackgroundPermissionsAsync();
+    } catch (e) {
+      console.log('Background location not available:', e);
+    }
+    return true;
   },
 
   // 現在地を取得
@@ -42,26 +31,15 @@ export const LocationService = {
     }
   },
 
-  // ジオフェンスを設定（最大20個）
-  async startGeofencing(spots: Spot[]): Promise<void> {
-    const regions: Location.LocationRegion[] = spots.slice(0, 20).map((spot) => ({
-      identifier: spot.id,
-      latitude: spot.latitude,
-      longitude: spot.longitude,
-      radius: spot.radius,
-      notifyOnEnter: true,
-      notifyOnExit: false,
-    }));
-
-    await Location.startGeofencingAsync(GEOFENCE_TASK, regions);
+  // ジオフェンスを設定（MVP: watchPositionで代用）
+  async startGeofencing(_spots: Spot[]): Promise<void> {
+    // Expo Goではジオフェンシングが使えないため、
+    // GuideScreen内のwatchPositionによる距離チェックで代用
   },
 
   // ジオフェンス停止
   async stopGeofencing(): Promise<void> {
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK);
-    if (isRegistered) {
-      await Location.stopGeofencingAsync(GEOFENCE_TASK);
-    }
+    // noop for MVP
   },
 
   // 近いスポットを距離順で取得

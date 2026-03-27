@@ -4,7 +4,7 @@ import { Spot } from '../types';
 import { CATEGORIES } from '../data/categories';
 import { SpeechService } from '../services/speech';
 
-const GOOGLE_API_KEY = 'AIzaSyCvkihno2FlwCxO9AW1a4SrmVeSbNASwH4';
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || '';
 
 interface Props {
   spot: Spot;

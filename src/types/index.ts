@@ -7,7 +7,8 @@ export type SpotCategory =
   | 'temple'        // 寺社仏閣
   | 'museum'        // 美術館・博物館
   | 'entertainment' // エンターテイメント
-  | 'viewpoint';    // 展望・景観スポット
+  | 'viewpoint'     // 展望・景観スポット
+  | 'heritage';     // 文化遺産
 
 export interface CategoryInfo {
   id: SpotCategory;

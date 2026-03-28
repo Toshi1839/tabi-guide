@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator, Linking } from 'react-native';
 import { Spot } from '../types';
 import { CATEGORIES } from '../data/categories';
 import { SpeechService } from '../services/speech';
@@ -106,10 +106,6 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
         <Text style={styles.description}>{spot.audio_text || spot.description}</Text>
       </ScrollView>
 
-      {spot.address && (
-        <Text style={styles.address}>{spot.address}</Text>
-      )}
-
       <View style={styles.actions}>
         <TouchableOpacity
           style={[styles.audioButton, isSpeaking && styles.stopButton]}
@@ -120,6 +116,19 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={styles.mapLink}
+        onPress={() => {
+          const searchQuery = spot.address
+            ? `${spot.name} ${spot.address}`
+            : spot.name;
+          const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`;
+          Linking.openURL(url);
+        }}
+      >
+        <Text style={styles.mapLinkText}>Google Mapで見る</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -194,11 +203,6 @@ const styles = StyleSheet.create({
     color: '#444',
     lineHeight: 22,
   },
-  address: {
-    fontSize: 13,
-    color: '#888',
-    marginBottom: 16,
-  },
   actions: {
     flexDirection: 'row',
   },
@@ -216,5 +220,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  mapLink: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  mapLinkText: {
+    fontSize: 14,
+    color: '#4361ee',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { Audio } from 'expo-av';
 
 // react-native-maps はWeb非対応のため条件付きimport
 let MapView: any = View;
@@ -130,16 +131,45 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
 
       const distance = getDistance(latitude, longitude, spot.latitude, spot.longitude);
       if (distance <= spot.radius) {
-        triggerSpot(spot);
+        triggerSpot(spot, true);
         break;
       }
     }
   }, [location, isGuiding, activeSpot, visitedIds, selectedCategories]);
 
+  // オーディオモード設定（イヤホン対応）
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    });
+  }, []);
+
+  // 通知音を再生
+  const playNotificationSound = useCallback(async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/notification.wav'),
+        { volume: 0.8, shouldPlay: true }
+      );
+      sound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.didJustFinish) sound.unloadAsync();
+      });
+    } catch (e) {
+      // 音声ファイルがない場合は無視
+    }
+  }, []);
+
   // スポットカードの表示
-  const triggerSpot = useCallback((spot: Spot) => {
+  const triggerSpot = useCallback((spot: Spot, isAuto: boolean = false) => {
     setActiveSpot(spot);
     setVisitedIds((prev) => new Set(prev).add(spot.id));
+
+    // 自動表示の場合は通知音を鳴らす
+    if (isAuto) {
+      playNotificationSound();
+    }
 
     // カードをスライドアップ
     Animated.spring(slideAnim, {
@@ -148,7 +178,7 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
       tension: 40,
       friction: 8,
     }).start();
-  }, [slideAnim]);
+  }, [slideAnim, playNotificationSound]);
 
   // スポットカードを閉じる
   const dismissSpot = useCallback(() => {
@@ -257,6 +287,25 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
       </SafeAreaView>
 
 
+      {/* 現在地ボタン */}
+      {!activeSpot && location && (
+        <TouchableOpacity
+          style={styles.myLocationButton}
+          onPress={() => {
+            if (mapRef.current && location) {
+              mapRef.current.animateToRegion({
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                latitudeDelta: 0.015,
+                longitudeDelta: 0.015,
+              }, 500);
+            }
+          }}
+        >
+          <Text style={styles.myLocationIcon}>◎</Text>
+        </TouchableOpacity>
+      )}
+
       {/* スポットカード（ボトムシート） */}
       {activeSpot && (
         <Animated.View
@@ -352,6 +401,28 @@ const styles = StyleSheet.create({
     color: '#333',
     maxWidth: 80,
     textAlign: 'center',
+  },
+  myLocationButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  myLocationIcon: {
+    fontSize: 24,
+    color: '#4361ee',
   },
   cardContainer: {
     position: 'absolute',

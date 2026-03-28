@@ -25,24 +25,44 @@ export async function fetchNearbySpots(
 
     let spots = data || [];
 
-    // レストランが2km以内にない場合、エリアトップ3を広範囲から取得
+    // レストランは5km範囲で追加取得
     if (categories?.includes('restaurant')) {
-      const hasRestaurants = spots.some((s: any) => s.category === 'restaurant');
-      if (!hasRestaurants) {
-        const { data: topData } = await supabase.rpc('nearby_spots', {
+      const restaurantsIn2km = spots.filter((s: any) => s.category === 'restaurant');
+
+      if (restaurantsIn2km.length < 3) {
+        // 5km範囲でレストランを追加取得
+        const { data: widerData } = await supabase.rpc('nearby_spots', {
           user_lat: lat,
           user_lng: lng,
-          radius_m: 10000, // 10km範囲に拡大
+          radius_m: 5000,
           categories: ['restaurant'],
         });
 
-        if (topData && topData.length > 0) {
-          // is_area_top のものを優先、なければ距離順トップ3
-          const areaTopSpots = topData
-            .filter((s: any) => s.is_area_top)
-            .slice(0, 10);
-          const topSpots = areaTopSpots.length > 0 ? areaTopSpots : topData.slice(0, 10);
-          spots = [...spots, ...topSpots];
+        if (widerData && widerData.length > 0) {
+          const existingIds = new Set(spots.map((s: any) => s.id));
+          const newSpots = widerData.filter((s: any) => !existingIds.has(s.id));
+          spots = [...spots, ...newSpots];
+        }
+
+        // 5km以内にもない場合、10km範囲のトップ10
+        const totalRestaurants = spots.filter((s: any) => s.category === 'restaurant').length;
+        if (totalRestaurants === 0) {
+          const { data: topData } = await supabase.rpc('nearby_spots', {
+            user_lat: lat,
+            user_lng: lng,
+            radius_m: 10000,
+            categories: ['restaurant'],
+          });
+
+          if (topData && topData.length > 0) {
+            const areaTopSpots = topData
+              .filter((s: any) => s.is_area_top)
+              .slice(0, 10);
+            const topSpots = areaTopSpots.length > 0 ? areaTopSpots : topData.slice(0, 10);
+            const existingIds = new Set(spots.map((s: any) => s.id));
+            const newTopSpots = topSpots.filter((s: any) => !existingIds.has(s.id));
+            spots = [...spots, ...newTopSpots];
+          }
         }
       }
     }

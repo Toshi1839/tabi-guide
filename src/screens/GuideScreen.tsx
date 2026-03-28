@@ -149,15 +149,23 @@ export default function GuideScreen({ selectedCategories, onStop }: Props) {
   // 通知音を再生
   const playNotificationSound = useCallback(async () => {
     try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        allowsRecordingIOS: false,
+        interruptionModeIOS: 1, // DoNotMix
+        interruptionModeAndroid: 1,
+      });
       const { sound } = await Audio.Sound.createAsync(
         require('../../assets/notification.wav'),
-        { volume: 0.8, shouldPlay: true }
+        { volume: 1.0, shouldPlay: true }
       );
       sound.setOnPlaybackStatusUpdate((status: any) => {
         if (status.didJustFinish) sound.unloadAsync();
       });
     } catch (e) {
-      // 音声ファイルがない場合は無視
+      console.log('Notification sound error:', e);
     }
   }, []);
 

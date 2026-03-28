@@ -102,8 +102,13 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
       ) : null}
 
       <Text style={styles.name}>{spot.name}</Text>
+      {spot.description && (
+        <Text style={styles.genreRating}>
+          {spot.description.replace(/([^。]+)。.*食べログ(\d\.\d+)。?.*/, '$1。食べログ$2')}
+        </Text>
+      )}
       <ScrollView style={styles.descriptionScroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.description}>{spot.audio_text || spot.description}</Text>
+        <Text style={styles.description}>{spot.audio_text}</Text>
       </ScrollView>
 
       <View style={styles.actions}>
@@ -192,6 +197,12 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#1a1a2e',
+    marginBottom: 4,
+  },
+  genreRating: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#e67e22',
     marginBottom: 8,
   },
   descriptionScroll: {

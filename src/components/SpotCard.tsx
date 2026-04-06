@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { Spot } from '../types';
 import { CATEGORIES } from '../data/categories';
 import { SpeechService } from '../services/speech';
+import ChatModal from './ChatModal';
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || '';
 
@@ -10,10 +12,16 @@ interface Props {
   spot: Spot;
   onAudioPress: (spot: Spot) => void;
   onDismiss: () => void;
+  isPremium: boolean;
+  isAiChatPremium: boolean;
+  onAiChatPurchase: () => void;
+  language: 'ja' | 'en';
 }
 
-async function fetchPlacePhoto(spotName: string, lat: number, lng: number): Promise<string | null> {
+async function fetchPlacePhoto(spotName: string, lat: number, lng: number, address?: string): Promise<string | null> {
   try {
+    // 住所がある場合はクエリに追加して精度向上
+    const query = address ? `${spotName} ${address.split(/[0-9０-９]/).shift()?.trim() || ''}`.trim() : spotName;
     const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
       headers: {
@@ -22,22 +30,25 @@ async function fetchPlacePhoto(spotName: string, lat: number, lng: number): Prom
         'X-Goog-FieldMask': 'places.photos',
       },
       body: JSON.stringify({
-        textQuery: spotName,
+        textQuery: query,
         locationBias: {
           circle: {
             center: { latitude: lat, longitude: lng },
-            radius: 500,
+            radius: 200,
           },
         },
         languageCode: 'ja',
         maxResultCount: 1,
       }),
     });
-
     const data = await response.json();
     if (data.places?.[0]?.photos?.[0]?.name) {
       const photoName = data.places[0].photos[0].name;
-      return `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=400&maxWidthPx=600&key=${GOOGLE_API_KEY}`;
+      const mediaRes = await fetch(
+        `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=400&maxWidthPx=600&key=${GOOGLE_API_KEY}&skipHttpRedirect=true`
+      );
+      const mediaData = await mediaRes.json();
+      if (mediaData.photoUri) return mediaData.photoUri;
     }
     return null;
   } catch {
@@ -45,16 +56,34 @@ async function fetchPlacePhoto(spotName: string, lat: number, lng: number): Prom
   }
 }
 
-export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
+function extractGenre(description?: string): string {
+  const m = description?.match(/^([^。]+)。/);
+  return m ? m[1] : '';
+}
+
+function extractRating(description?: string): string | null {
+  const m = description?.match(/食べログ(\d\.\d+)/);
+  return m ? m[1] : null;
+}
+
+export default function SpotCard({ spot, onAudioPress, onDismiss, isPremium, isAiChatPremium, onAiChatPurchase, language }: Props) {
   const category = CATEGORIES.find((c) => c.id === spot.category);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(true);
+  const [chatVisible, setChatVisible] = useState(false);
+
+  const isRestaurant = spot.category === 'restaurant';
+  const displayName = language === 'en' && spot.name_en ? spot.name_en : spot.name;
+  const displayDescription = language === 'en' && spot.description_en ? spot.description_en : spot.description;
+  const displayAudioText = language === 'en' && spot.audio_text_en ? spot.audio_text_en : spot.audio_text;
+  const genre = extractGenre(displayDescription);
+  const rating = extractRating(spot.description); // 評価は日本語フィールドから取得
 
   useEffect(() => {
     setPhotoLoading(true);
     setPhotoUrl(null);
-    fetchPlacePhoto(spot.name, spot.latitude, spot.longitude).then((url) => {
+    fetchPlacePhoto(spot.name, spot.latitude, spot.longitude, spot.address).then((url) => {
       setPhotoUrl(url);
       setPhotoLoading(false);
     });
@@ -83,6 +112,29 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
     onDismiss();
   };
 
+  const openTabelog = () => {
+    let url = spot.tabelog_url || '';
+    if (language === 'en' && url) {
+      // tabelog.com/chiba/... → tabelog.com/en/chiba/...
+      url = url.replace('tabelog.com/', 'tabelog.com/en/');
+    }
+    Linking.openURL(url);
+  };
+
+  const openGoogleMap = async () => {
+    const searchQuery = spot.address ? `${spot.name} ${spot.address}` : spot.name;
+    const q = encodeURIComponent(searchQuery);
+    // Google Mapsアプリを直接起動（ダイアログ不要）
+    const googleMapsApp = `comgooglemaps://?q=${q}`;
+    const appleMaps = `maps://?q=${q}`;
+    const canOpenGoogle = await Linking.canOpenURL(googleMapsApp);
+    if (canOpenGoogle) {
+      Linking.openURL(googleMapsApp);
+    } else {
+      Linking.openURL(appleMaps);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -101,14 +153,24 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
         <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
       ) : null}
 
-      <Text style={styles.name}>{spot.name}</Text>
-      {spot.description && (
+      <Text style={styles.name}>{displayName}</Text>
+
+      {/* レストラン：有料版のみジャンル・評価を表示 */}
+      {isRestaurant && isPremium && genre ? (
         <Text style={styles.genreRating}>
-          {spot.description.replace(/([^。]+)。.*食べログ(\d\.\d+)。?.*/, '$1。食べログ$2')}
+          {genre}
+        </Text>
+      ) : null}
+
+      {/* 非レストランは説明表示 */}
+      {!isRestaurant && displayDescription && (
+        <Text style={styles.genreRating}>
+          {displayDescription.replace(/([^。.]+)[。.].*/, '$1')}
         </Text>
       )}
+
       <ScrollView style={styles.descriptionScroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.description}>{spot.audio_text}</Text>
+        <Text style={styles.description}>{displayAudioText}</Text>
       </ScrollView>
 
       <View style={styles.actions}>
@@ -117,23 +179,46 @@ export default function SpotCard({ spot, onAudioPress, onDismiss }: Props) {
           onPress={handleAudioToggle}
         >
           <Text style={styles.audioButtonText}>
-            {isSpeaking ? '音声を停止' : '音声ガイドを聞く'}
+            {isSpeaking
+              ? (language === 'en' ? 'Stop Audio' : '音声を停止')
+              : (language === 'en' ? 'Play Audio Guide' : '音声ガイドを聞く')
+            }
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.chatButton}
+          onPress={() => setChatVisible(true)}
+        >
+          <Text style={styles.chatButtonText}>
+            {language === 'en' ? '🤖 Ask AI' : '🤖 AIに質問'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={styles.mapLink}
-        onPress={() => {
-          const searchQuery = spot.address
-            ? `${spot.name} ${spot.address}`
-            : spot.name;
-          const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(searchQuery)}`;
-          Linking.openURL(url);
-        }}
-      >
-        <Text style={styles.mapLinkText}>Google Mapで見る</Text>
-      </TouchableOpacity>
+      <ChatModal
+        visible={chatVisible}
+        spot={spot}
+        isAiChatPremium={isAiChatPremium}
+        onAiChatPurchase={onAiChatPurchase}
+        language={language}
+        onClose={() => setChatVisible(false)}
+      />
+
+      {/* リンク行 */}
+      <View style={styles.linkRow}>
+        <TouchableOpacity onPress={openGoogleMap}>
+          <Text style={styles.mapLinkText}>Google Map</Text>
+        </TouchableOpacity>
+
+        {/* 有料版かつ食べログ評価がある場合のみリンク表示 */}
+        {isRestaurant && isPremium && rating && spot.tabelog_url && (
+          <TouchableOpacity onPress={openTabelog} style={styles.tabelogButton}>
+            <Text style={styles.tabelogButtonText}>
+              {language === 'en' ? 'View on Tabelog' : '食べログで見る'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -144,7 +229,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
-    maxHeight: 550,
+    maxHeight: 540,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -156,90 +241,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  categoryIcon: {
-    fontSize: 20,
-    marginRight: 6,
-  },
-  categoryLabel: {
-    fontSize: 13,
-    color: '#4361ee',
-    fontWeight: '600',
-    flex: 1,
-  },
+  categoryIcon: { fontSize: 20, marginRight: 6 },
+  categoryLabel: { fontSize: 13, color: '#4361ee', fontWeight: '600', flex: 1 },
   dismissButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center',
   },
-  dismissText: {
-    fontSize: 16,
-    color: '#999',
-  },
-  photo: {
-    width: '100%',
-    height: 160,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
+  dismissText: { fontSize: 16, color: '#999' },
+  photo: { width: '100%', height: 160, borderRadius: 12, marginBottom: 12 },
   photoPlaceholder: {
-    width: '100%',
-    height: 160,
-    borderRadius: 12,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    width: '100%', height: 160, borderRadius: 12,
+    backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
   },
-  name: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#1a1a2e',
-    marginBottom: 4,
-  },
-  genreRating: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#e67e22',
-    marginBottom: 8,
-  },
-  descriptionScroll: {
-    maxHeight: 150,
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 15,
-    color: '#444',
-    lineHeight: 22,
-  },
-  actions: {
-    flexDirection: 'row',
-  },
+  name: { fontSize: 22, fontWeight: 'bold', color: '#1a1a2e', marginBottom: 4 },
+  genreRating: { fontSize: 14, fontWeight: '600', color: '#e67e22', marginBottom: 8 },
+  genreOnly: { fontSize: 14, fontWeight: '600', color: '#999', marginBottom: 8 },
+  descriptionScroll: { maxHeight: 120, marginBottom: 8 },
+  description: { fontSize: 15, color: '#444', lineHeight: 22 },
+  actions: { flexDirection: 'row', marginBottom: 10, gap: 8 },
   audioButton: {
-    flex: 1,
-    backgroundColor: '#4361ee',
-    paddingVertical: 14,
-    borderRadius: 12,
+    flex: 1, backgroundColor: '#4361ee', paddingVertical: 14,
+    borderRadius: 12, alignItems: 'center',
+  },
+  chatButton: {
+    flex: 1, backgroundColor: '#f0f4ff', paddingVertical: 14,
+    borderRadius: 12, alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#4361ee',
+  },
+  chatButtonText: { color: '#4361ee', fontSize: 15, fontWeight: 'bold' },
+  stopButton: { backgroundColor: '#e63946' },
+  audioButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 16,
+    marginTop: 4,
   },
-  stopButton: {
-    backgroundColor: '#e63946',
+  mapLinkText: { fontSize: 14, color: '#4361ee', fontWeight: '600', textDecorationLine: 'underline' },
+  tabelogButton: {
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  audioButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  mapLink: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  mapLinkText: {
-    fontSize: 14,
-    color: '#4361ee',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
+  tabelogButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 });

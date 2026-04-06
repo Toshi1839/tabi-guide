@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "旅ガイド",
+    "name": "AI街歩きガイド",
     "slug": "tabi-guide",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,27 +12,36 @@
       "backgroundColor": "#4361ee"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tabishiroguide.app",
+      "config": {
+        "googleMapsApiKey": "AIzaSyAuYvdctmguIpkZIxxlrDE5jYwC7pgLALU"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "近くのスポットを検出するために位置情報を使用します",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "バックグラウンドでもスポットに近づいた時に通知するために位置情報を使用します",
-        "NSLocationAlwaysUsageDescription": "バックグラウンドでもスポットに近づいた時に通知するために位置情報を使用します",
-        "UIBackgroundModes": [
-          "location"
-        ]
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["comgooglemaps"]
       }
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAuYvdctmguIpkZIxxlrDE5jYwC7pgLALU"
+        }
+      },
       "adaptiveIcon": {
-        "backgroundColor": "#4361ee",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4361ee"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "web": {
@@ -47,7 +56,14 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-asset"
-    ]
+      "expo-asset",
+      "expo-web-browser",
+      "react-native-iap"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1fbf1e35-aada-4b2d-9d0b-b2c15aeefed7"
+      }
+    }
   }
 }

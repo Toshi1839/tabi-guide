@@ -8,11 +8,14 @@ export type SpotCategory =
   | 'museum'        // 美術館・博物館
   | 'entertainment' // エンターテイメント
   | 'viewpoint'     // 展望・景観スポット
-  | 'heritage';     // 文化遺産
+  | 'heritage'      // 文化遺産
+  | 'shrine_history' // 史跡・寺社（統合カテゴリ）
+  | 'attraction';   // 観光名所（nature + museum + viewpoint 統合カテゴリ）
 
 export interface CategoryInfo {
   id: SpotCategory;
   label: string;
+  label_en: string;
   icon: string; // emoji for MVP, replace with icons later
 }
 
@@ -33,6 +36,8 @@ export interface Spot {
   address?: string;
   opening_hours?: string;
   rating?: number;
+  tabelog_url?: string;
+  audio_url?: string;      // WaveNet TTS音声ファイルURL
 }
 
 // ユーザーの選択状態

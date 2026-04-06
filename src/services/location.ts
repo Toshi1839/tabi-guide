@@ -10,13 +10,6 @@ export const LocationService = {
   async requestPermissions(): Promise<boolean> {
     const { status: foreground } = await Location.requestForegroundPermissionsAsync();
     if (foreground !== 'granted') return false;
-
-    // バックグラウンド権限は任意（Expo Goでは失敗する場合がある）
-    try {
-      await Location.requestBackgroundPermissionsAsync();
-    } catch (e) {
-      console.log('Background location not available:', e);
-    }
     return true;
   },
 

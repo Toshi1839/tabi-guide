@@ -7,8 +7,10 @@ import {
   FlatList,
   SafeAreaView,
   Dimensions,
+  ScrollView,
+  Alert,
 } from 'react-native';
-import { CATEGORIES } from '../data/categories';
+import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { SpotCategory } from '../types';
 
 const { width } = Dimensions.get('window');
@@ -16,11 +18,68 @@ const CARD_MARGIN = 8;
 const CARD_WIDTH = (width - 40 - CARD_MARGIN * 4) / 2;
 
 interface Props {
-  onStart: (categories: SpotCategory[]) => void;
+  onStart: (categories: SpotCategory[], genres: string[]) => void;
+  isPremium: boolean;
+  onPurchase: () => void;
+  onRestorePurchases: () => void;
+  language: 'ja' | 'en';
+  onLanguageChange: (lang: 'ja' | 'en') => void;
+  onShowGuide?: () => void;
 }
 
-export default function CategorySelectScreen({ onStart }: Props) {
+const T = {
+  ja: {
+    appName: 'AI街歩きガイド',
+    title: '好きなカテゴリーの選択',
+    subtitle: '選んだカテゴリのスポットに近づくと\n自動で音声ガイドが始まります',
+    selectAll: 'すべて選択',
+    deselectAll: 'すべて解除',
+    selected: '選択中',
+    packTitle: '🍽️ グルメパック',
+    packDescription: 'ラーメンは無料で表示。パック購入で全ジャンル解放 + 食べログ評価・リンク',
+    purchaseButtonText: '¥500',
+    purchasedBadge: '購入済み',
+    restoreButton: '購入を復元',
+    selectAllGenres: '全ジャンル選択',
+    deselectAllGenres: '全解除',
+    purchaseTitle: 'グルメパック',
+    purchaseMessage: 'ラーメン以外の全ジャンルが解放され、食べログの評価とリンクも表示されます。\n\n¥500（買い切り）',
+    cancel: 'キャンセル',
+    purchase: '購入する',
+    startButton: 'ガイドを開始する',
+    startDisabled: 'カテゴリを選択してください',
+    categoriesSelected: 'カテゴリ',
+    genresSelected: 'ジャンル',
+  },
+  en: {
+    appName: 'AI Street Guide',
+    title: 'Select Your Favorite Categories',
+    subtitle: 'Audio guides will start automatically\nwhen you approach selected spots',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    selected: 'selected',
+    packTitle: '🍽️ Restaurant Pack',
+    packDescription: 'Ramen is free. Purchase to unlock all genres + Tabelog ratings & links',
+    purchaseButtonText: '¥500',
+    purchasedBadge: 'Purchased',
+    restoreButton: 'Restore Purchase',
+    selectAllGenres: 'Select All Genres',
+    deselectAllGenres: 'Deselect All',
+    purchaseTitle: 'Restaurant Pack',
+    purchaseMessage: 'Unlock all genres except ramen, with Tabelog ratings and links.\n\n¥500 (one-time)',
+    cancel: 'Cancel',
+    purchase: 'Purchase',
+    startButton: 'Start Guide',
+    startDisabled: 'Please select a category',
+    categoriesSelected: 'categories',
+    genresSelected: 'genres',
+  },
+};
+
+export default function CategorySelectScreen({ onStart, isPremium, onPurchase, onRestorePurchases, language, onLanguageChange, onShowGuide }: Props) {
+  const t = T[language];
   const [selected, setSelected] = useState<Set<SpotCategory>>(new Set());
+  const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
 
   const toggle = (id: SpotCategory) => {
     setSelected((prev) => {
@@ -31,6 +90,23 @@ export default function CategorySelectScreen({ onStart }: Props) {
     });
   };
 
+  const toggleGenre = (id: string) => {
+    setSelectedGenres((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllGenres = () => {
+    if (selectedGenres.size === RESTAURANT_GENRES.length) {
+      setSelectedGenres(new Set());
+    } else {
+      setSelectedGenres(new Set(RESTAURANT_GENRES.map(g => g.id)));
+    }
+  };
+
   const selectAll = () => {
     if (selected.size === CATEGORIES.length) {
       setSelected(new Set());
@@ -39,69 +115,176 @@ export default function CategorySelectScreen({ onStart }: Props) {
     }
   };
 
+  const handlePurchase = () => {
+    Alert.alert(
+      t.purchaseTitle,
+      t.purchaseMessage,
+      [
+        { text: t.cancel, style: 'cancel' },
+        { text: t.purchase, onPress: onPurchase },
+      ]
+    );
+  };
+
+  const totalSelected = selected.size + (isPremium && selectedGenres.size > 0 ? 1 : 0);
+  const canStart = selected.size > 0 || (isPremium && selectedGenres.size > 0);
+
+  const handleStart = () => {
+    const categories = Array.from(selected);
+    // グルメパックのジャンルが選ばれていればrestaurantカテゴリも含める
+    if (isPremium && selectedGenres.size > 0 && !categories.includes('restaurant')) {
+      categories.push('restaurant');
+    }
+    onStart(categories, Array.from(selectedGenres));
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.appName}>旅ガイド</Text>
-        <Text style={styles.title}>どんな場所に興味がありますか？</Text>
-        <Text style={styles.subtitle}>
-          選んだカテゴリのスポットに近づくと{'\n'}自動で音声ガイドが始まります
-        </Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.appName}>{t.appName}</Text>
+          <View style={styles.headerRight}>
+            {onShowGuide && (
+              <TouchableOpacity style={styles.guideButton} onPress={onShowGuide}>
+                <Text style={styles.guideButtonText}>?</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        <Text style={styles.title}>{t.title}</Text>
+        <Text style={styles.subtitle}>{t.subtitle}</Text>
       </View>
 
-      <View style={styles.selectAllRow}>
-        <TouchableOpacity onPress={selectAll} style={styles.selectAllButton}>
-          <Text style={styles.selectAllText}>
-            {selected.size === CATEGORIES.length ? 'すべて解除' : 'すべて選択'}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* 通常カテゴリ */}
+        <View style={styles.selectAllRow}>
+          <TouchableOpacity onPress={selectAll} style={styles.selectAllButton}>
+            <Text style={styles.selectAllText}>
+              {selected.size === CATEGORIES.length ? t.deselectAll : t.selectAll}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.countText}>
+            {selected.size} / {CATEGORIES.length} {t.selected}
           </Text>
-        </TouchableOpacity>
-        <Text style={styles.countText}>
-          {selected.size} / {CATEGORIES.length} 選択中
-        </Text>
-      </View>
+        </View>
 
-      <FlatList
-        data={CATEGORIES}
-        numColumns={2}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.grid}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
-          const isSelected = selected.has(item.id);
-          return (
-            <TouchableOpacity
-              style={[styles.card, isSelected && styles.cardSelected]}
-              onPress={() => toggle(item.id)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconContainer, isSelected && styles.iconContainerSelected]}>
-                <Text style={styles.icon}>{item.icon}</Text>
-              </View>
-              <Text style={[styles.label, isSelected && styles.labelSelected]}>
-                {item.label}
-              </Text>
-              {isSelected && (
-                <View style={styles.checkBadge}>
-                  <Text style={styles.checkMark}>✓</Text>
+        <View style={styles.grid}>
+          {CATEGORIES.map((item) => {
+            const isSelected = selected.has(item.id);
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.card, isSelected && styles.cardSelected]}
+                onPress={() => toggle(item.id)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconContainer, isSelected && styles.iconContainerSelected]}>
+                  <Text style={styles.icon}>{item.icon}</Text>
                 </View>
-              )}
+                <Text style={[styles.label, isSelected && styles.labelSelected]}>
+                  {language === 'en' ? item.label_en : item.label}
+                </Text>
+                {isSelected && (
+                  <View style={styles.checkBadge}>
+                    <Text style={styles.checkMark}>✓</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* グルメパック */}
+        <View style={styles.packSection}>
+          <View style={styles.packHeader}>
+            <Text style={styles.packTitle}>{t.packTitle}</Text>
+            {!isPremium && (
+              <View style={styles.purchaseActions}>
+                <TouchableOpacity style={styles.purchaseButton} onPress={handlePurchase}>
+                  <Text style={styles.purchaseButtonText}>{t.purchaseButtonText}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.restoreButton} onPress={onRestorePurchases}>
+                  <Text style={styles.restoreButtonText}>{t.restoreButton}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {isPremium && (
+              <View style={styles.premiumBadge}>
+                <Text style={styles.premiumBadgeText}>{t.purchasedBadge}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.packDescription}>{t.packDescription}</Text>
+
+          {isPremium && (
+            <TouchableOpacity onPress={selectAllGenres} style={styles.selectAllGenreButton}>
+              <Text style={styles.selectAllGenreText}>
+                {selectedGenres.size === RESTAURANT_GENRES.length ? t.deselectAllGenres : t.selectAllGenres}
+              </Text>
             </TouchableOpacity>
-          );
-        }}
-      />
+          )}
+
+          {!isPremium ? (
+            // 未購入：ラーメンは無料、それ以外はロック表示
+            <View style={styles.lockedGrid}>
+              {RESTAURANT_GENRES.map((g) => {
+                const isFree = g.id === 'ramen';
+                return (
+                  <View key={g.id} style={[styles.genreCardLocked, isFree && styles.genreCardFree]}>
+                    <Text style={styles.genreIcon}>{g.icon}</Text>
+                    <Text style={[styles.genreLabelLocked, isFree && styles.genreLabelFree]}>
+                      {language === 'en' ? g.label_en : g.label}
+                    </Text>
+                    {isFree
+                      ? <Text style={styles.freeTag}>FREE</Text>
+                      : <Text style={styles.lockIcon}>🔒</Text>
+                    }
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            // 購入済み：選択可能
+            <View style={styles.lockedGrid}>
+              {RESTAURANT_GENRES.map((g) => {
+                const isSelected = selectedGenres.has(g.id);
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={[styles.genreCard, isSelected && styles.genreCardSelected]}
+                    onPress={() => toggleGenre(g.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.genreIcon}>{g.icon}</Text>
+                    <Text style={[styles.genreLabel, isSelected && styles.genreLabelSelected]}>
+                      {language === 'en' ? g.label_en : g.label}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.genreCheck}>
+                        <Text style={styles.checkMark}>✓</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </ScrollView>
 
       <View style={styles.bottomSection}>
         <TouchableOpacity
-          style={[styles.startButton, selected.size === 0 && styles.startButtonDisabled]}
-          onPress={() => onStart(Array.from(selected))}
-          disabled={selected.size === 0}
+          style={[styles.startButton, !canStart && styles.startButtonDisabled]}
+          onPress={handleStart}
+          disabled={!canStart}
         >
           <Text style={styles.startButtonText}>
-            {selected.size === 0 ? 'カテゴリを選択してください' : 'ガイドを開始する'}
+            {!canStart ? t.startDisabled : t.startButton}
           </Text>
-          {selected.size > 0 && (
+          {canStart && (
             <Text style={styles.startButtonSubtext}>
-              {selected.size}カテゴリ選択中
+              {selected.size} {t.categoriesSelected}
+              {isPremium && selectedGenres.size > 0 ? ` + ${selectedGenres.size} ${t.genresSelected}` : ''}
             </Text>
           )}
         </TouchableOpacity>
@@ -120,13 +303,61 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   appName: {
     fontSize: 13,
     fontWeight: '700',
     color: '#60a5fa',
     letterSpacing: 2,
     textTransform: 'uppercase',
-    marginBottom: 8,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  guideButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  guideButtonText: {
+    color: '#94a3b8',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  langToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#1e293b',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  langBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  langBtnActive: {
+    backgroundColor: '#3b82f6',
+  },
+  langBtnText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#64748b',
+  },
+  langBtnTextActive: {
+    color: '#fff',
   },
   title: {
     fontSize: 26,
@@ -163,8 +394,10 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 12,
-    paddingBottom: 20,
+    paddingBottom: 8,
   },
   card: {
     width: CARD_WIDTH,
@@ -221,6 +454,160 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  // グルメパック
+  packSection: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 16,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#f59e0b33',
+  },
+  packHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  packTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#f1f5f9',
+  },
+  purchaseActions: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  purchaseButton: {
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  purchaseButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  restoreButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  restoreButtonText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    textDecorationLine: 'underline',
+  },
+  premiumBadge: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  premiumBadgeText: {
+    color: '#4ade80',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  packDescription: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 12,
+  },
+  lockedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  genreCardLocked: {
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    opacity: 0.5,
+  },
+  genreCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    position: 'relative',
+  },
+  genreCardSelected: {
+    borderColor: '#f59e0b',
+    backgroundColor: '#1c1700',
+  },
+  genreIcon: {
+    fontSize: 16,
+  },
+  genreLabelLocked: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  genreLabel: {
+    fontSize: 13,
+    color: '#cbd5e1',
+    fontWeight: '500',
+  },
+  genreLabelSelected: {
+    color: '#fbbf24',
+  },
+  lockIcon: {
+    fontSize: 10,
+    marginLeft: 2,
+  },
+  genreCardFree: {
+    opacity: 1,
+    borderWidth: 1,
+    borderColor: '#22c55e33',
+    backgroundColor: '#052e16',
+  },
+  genreLabelFree: {
+    color: '#4ade80',
+    fontWeight: '600',
+  },
+  freeTag: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#4ade80',
+    marginLeft: 2,
+  },
+  selectAllGenreButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    marginBottom: 10,
+  },
+  selectAllGenreText: {
+    fontSize: 13,
+    color: '#f59e0b',
+    fontWeight: '600',
+  },
+  genreCheck: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottomSection: {
     paddingHorizontal: 20,

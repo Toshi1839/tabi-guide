@@ -41,3 +41,10 @@ yarn-error.*
 /android
 scripts/
 .env
+
+# local working dirs (do not commit)
+backups/
+logs/
+docs/
+.claude/
+*.json.backup

@@ -20,7 +20,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "近くのスポットを検出するために位置情報を使用します",
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["comgooglemaps"]
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps"
+        ]
       }
     },
     "android": {
@@ -58,7 +60,8 @@
       ],
       "expo-asset",
       "expo-web-browser",
-      "react-native-iap"
+      "react-native-iap",
+      "expo-localization"
     ],
     "extra": {
       "eas": {

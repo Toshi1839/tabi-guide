@@ -47,22 +47,22 @@ interface Props {
 
 // ジャンルIDから説明文のキーワードへのマッピング
 const GENRE_KEYWORDS: Record<string, string[]> = {
-  washoku:  ['和食', '日本料理', '割烹', '懐石', '会席', '鉄板焼'],
-  sushi:    ['寿司', '鮨', 'すし'],
+  washoku:  ['和食', '日本料理', '割烹', '懐石', '会席', '鉄板焼', '定食', '天ぷら', 'てんぷら', 'とんかつ', 'お好み焼', 'もんじゃ', '串揚げ', '串カツ', '刺身', 'すきやき', 'すき焼', 'しゃぶしゃぶ', '釜飯', 'おでん', '弁当'],
+  sushi:    ['寿司', '鮨', 'すし', '回転寿司', '海鮮丼'],
   unagi:    ['うなぎ', 'ウナギ', '鰻', '蒲焼'],
-  ramen:    ['ラーメン', 'らーめん', '中華そば'],
-  yakiniku: ['焼肉', '焼き肉'],
-  yakitori: ['焼き鳥', '焼鳥', '串焼'],
-  izakaya:  ['居酒屋'],
+  ramen:    ['ラーメン', 'らーめん', '中華そば', 'つけ麺', '油そば', '担担麺'],
+  yakiniku: ['焼肉', '焼き肉', 'ホルモン', 'ジンギスカン'],
+  yakitori: ['焼き鳥', '焼鳥', '串焼', 'もつ焼'],
+  izakaya:  ['居酒屋', '酒場', '炉端', '小料理'],
   bar:      ['バー', 'Bar', 'BAR', 'ダイニングバー', 'ワインバー', 'カクテル', 'ウイスキー', 'スタンディングバー', 'オーセンティックバー'],
-  chinese:  ['中華', '中国料理', '餃子', '担々麺'],
-  italian:  ['イタリアン', 'イタリア料理', 'ピッツァ', 'パスタ'],
-  french:   ['フレンチ', 'フランス料理'],
-  cafe:     ['カフェ', '喫茶', 'コーヒー'],
-  soba:       ['蕎麦', 'そば', 'うどん'],
+  chinese:  ['中華料理', '中国料理', '餃子', '担々麺', '飲茶', '点心', '麻婆', '北京ダック', '上海料理', '四川料理', '広東料理'],
+  italian:  ['イタリアン', 'イタリア料理', 'ピッツァ', 'ピザ', 'パスタ', 'リストランテ', 'トラットリア', 'オステリア'],
+  french:   ['フレンチ', 'フランス料理', 'ビストロ', 'ブラッスリー'],
+  cafe:     ['カフェ', '喫茶', 'コーヒー', '珈琲', 'ベーカリー', 'ブーランジェリー'],
+  soba:       ['蕎麦', 'そば', 'うどん', '稲庭', '讃岐', 'ほうとう'],
   craft_beer: ['クラフトビール', 'ブルワリー', 'ビアバー', 'ビール'],
   sweets:     ['スイーツ', '和菓子', '洋菓子', 'パティスリー', 'ケーキ', 'チョコレート', 'アイスクリーム', 'パフェ', 'たい焼き', 'どら焼き', '甘味'],
-  ethnic:     ['エスニック', 'タイ料理', 'ベトナム料理', 'インド料理', 'メキシカン', 'メキシコ料理', 'トルコ料理', '韓国料理', 'ネパール料理', 'インドネシア料理', '東南アジア', '中東料理', 'アジア料理'],
+  ethnic:     ['エスニック', 'タイ料理', 'ベトナム料理', 'インド料理', 'メキシカン', 'メキシコ料理', 'トルコ料理', '韓国料理', 'ネパール料理', 'インドネシア料理', '東南アジア', '中東料理', 'アジア料理', '台湾料理', 'フィリピン料理', 'スリランカ料理', 'モロッコ料理', 'ペルー料理', 'ブラジル料理', 'アフリカ料理', 'スパイスカレー', 'ハラル', '無国籍'],
   vegetarian: ['ベジタリアン', 'ヴィーガン', 'vegan', 'vegetarian', '菜食', '植物性', 'オーガニック'],
   other:      [],
 };
@@ -240,14 +240,17 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
           const spots = results.flat();
           // ID重複除去
           let unique = spots.filter((s, i) => spots.findIndex(x => x.id === s.id) === i);
-          // Google Places(クラフトビール)の座標重複除去: 既存DBのレストランと50m以内なら除外
-          const dbRestaurants = unique.filter(s => s.category === 'restaurant' && !s._isCraftBeer);
+          // Google Places(クラフトビール)の重複除去: DBレストランと「同名」のみ除外
+          // 座標ベースの50m除去はDB密度急増(120,000+)により過剰除去となるため廃止
+          const dbRestaurantNames = new Set(
+            unique
+              .filter(s => s.category === 'restaurant' && !s._isCraftBeer)
+              .map(s => (s.name || '').trim())
+              .filter(n => n.length > 0)
+          );
           unique = unique.filter(s => {
             if (!s._isCraftBeer) return true;
-            const hasNearbyDup = dbRestaurants.some(db =>
-              getDistance(s.latitude, s.longitude, db.latitude, db.longitude) < 50
-            );
-            return !hasNearbyDup;
+            return !dbRestaurantNames.has((s.name || '').trim());
           });
           if (!fetchAbortRef.current?.signal.aborted) {
             // レストランフィルター:
@@ -264,16 +267,24 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
             });
 
             // カテゴリ別に件数上限を適用（距離順）
-            // 無料：ラーメン20件、有料：全ジャンル40件
+            // 無料：ラーメン10件、有料：全ジャンル20件（DB側）
+            // Google Places のクラフトビールはDB枠を圧迫しないよう別枠（最大10件）
             const LIMITS: Partial<Record<SpotCategory, number>> = {
               shrine_history: 20,
               attraction: 15,
               heritage: 15,
-              restaurant: isPremium ? 40 : 20,
+              restaurant: isPremium ? 20 : 10,
               toilet: 10,
             };
+            const CRAFT_BEER_LIMIT = 10;
             const countByCategory: Partial<Record<SpotCategory, number>> = {};
+            let craftBeerCount = 0;
             const limited = filtered.filter(s => {
+              // Google Places のクラフトビールは別枠で集計
+              if ((s as any)._isCraftBeer) {
+                craftBeerCount++;
+                return craftBeerCount <= CRAFT_BEER_LIMIT;
+              }
               const limit = LIMITS[s.category];
               if (limit === undefined) return true;
               const count = (countByCategory[s.category] ?? 0) + 1;

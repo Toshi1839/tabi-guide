@@ -128,55 +128,71 @@ export async function fetchNearbySpots(
 }
 
 // Google Places APIでクラフトビール店を検索
+// 単一クエリ「クラフトビール ビアバー ブルワリー」だとlocationBias下でも全国上位が返り
+// ローカル店がtop20に入らない問題があるため、3クエリに分けて結果をマージする
 export async function fetchCraftBeerSpots(
   lat: number,
   lng: number,
   radiusM: number = 5000
 ): Promise<Spot[]> {
   if (!GOOGLE_API_KEY) return [];
-  try {
-    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': GOOGLE_API_KEY,
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.googleMapsUri,places.editorialSummary',
-      },
-      body: JSON.stringify({
-        textQuery: 'クラフトビール ビアバー ブルワリー',
-        locationBias: {
-          circle: {
-            center: { latitude: lat, longitude: lng },
-            radius: radiusM,
-          },
-        },
-        languageCode: 'ja',
-        maxResultCount: 20,
-      }),
-    });
-    const data = await response.json();
-    if (!data.places) return [];
 
-    return data.places
-      .filter((p: any) => {
-        if (!p.location) return false;
+  const queries = ['クラフトビール', 'ビアバー', 'ブルワリー'];
+
+  async function searchOne(query: string): Promise<any[]> {
+    try {
+      const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': GOOGLE_API_KEY,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.googleMapsUri,places.editorialSummary',
+        },
+        body: JSON.stringify({
+          textQuery: query,
+          locationBias: {
+            circle: {
+              center: { latitude: lat, longitude: lng },
+              radius: radiusM,
+            },
+          },
+          languageCode: 'ja',
+          maxResultCount: 20,
+        }),
+      });
+      const data = await response.json();
+      return data.places || [];
+    } catch (e) {
+      console.warn(`fetchCraftBeerSpots[${query}] error:`, e);
+      return [];
+    }
+  }
+
+  try {
+    const results = await Promise.all(queries.map(q => searchOne(q)));
+    const merged = new Map<string, any>();
+    for (const list of results) {
+      for (const p of list) {
+        if (!p.id || !p.location) continue;
         const dist = getDistance(lat, lng, p.location.latitude, p.location.longitude);
-        return dist <= radiusM;
-      })
-      .map((p: any) => ({
-        id: `gp_craft_${p.id}`,
-        name: p.displayName?.text || '',
-        description: `クラフトビール・ビアバー。${p.rating ? `Google ${p.rating}` : ''}`,
-        audio_text: p.editorialSummary?.text || `${p.displayName?.text || ''}はクラフトビールが楽しめるお店です。`,
-        category: 'restaurant' as SpotCategory,
-        latitude: p.location.latitude,
-        longitude: p.location.longitude,
-        radius: 100,
-        address: p.formattedAddress,
-        rating: p.rating,
-        tabelog_url: p.googleMapsUri,
-        _isCraftBeer: true,
-      }));
+        if (dist > radiusM) continue;
+        if (!merged.has(p.id)) merged.set(p.id, p);
+      }
+    }
+    return [...merged.values()].map((p: any) => ({
+      id: `gp_craft_${p.id}`,
+      name: p.displayName?.text || '',
+      description: `クラフトビール・ビアバー。${p.rating ? `Google ${p.rating}` : ''}`,
+      audio_text: p.editorialSummary?.text || `${p.displayName?.text || ''}はクラフトビールが楽しめるお店です。`,
+      category: 'restaurant' as SpotCategory,
+      latitude: p.location.latitude,
+      longitude: p.location.longitude,
+      radius: 100,
+      address: p.formattedAddress,
+      rating: p.rating,
+      tabelog_url: p.googleMapsUri,
+      _isCraftBeer: true,
+    }));
   } catch (e) {
     console.warn('fetchCraftBeerSpots error:', e);
     return [];

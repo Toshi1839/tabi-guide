@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, NativeModules, Platform } from 'react-native';
+import { Alert } from 'react-native';
+import * as Localization from 'expo-localization';
 
 // 端末の言語設定を取得（'ja' or 'en'）
+// expo-localizationを使用（New Architecture対応・確実）
 function getDeviceLanguage(): 'ja' | 'en' {
   try {
-    const locale = Platform.OS === 'ios'
-      ? (NativeModules.SettingsManager?.settings?.AppleLocale ||
-         NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] || 'en')
-      : (NativeModules.I18nManager?.localeIdentifier || 'en');
-    return String(locale).toLowerCase().startsWith('ja') ? 'ja' : 'en';
+    const locales = Localization.getLocales();
+    const langCode = locales[0]?.languageCode || 'ja';
+    return langCode === 'ja' ? 'ja' : 'en';
   } catch {
     return 'ja';
   }

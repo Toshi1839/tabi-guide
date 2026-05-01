@@ -30,7 +30,11 @@ interface Props {
 function Slide1({ language }: { language: 'ja' | 'en' }) {
   const isJa = language === 'ja';
   return (
-    <View style={styles.slide}>
+    <ScrollView
+      style={styles.slideScroll}
+      contentContainerStyle={styles.slideScrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={styles.icon}>🗾</Text>
       <Text style={styles.title}>
         {isJa ? 'AI街歩きガイドへようこそ' : 'Welcome to AI Street Guide'}
@@ -65,11 +69,11 @@ function Slide1({ language }: { language: 'ja' | 'en' }) {
         </Text>
         <View style={styles.boxDivider} />
         <Text style={styles.spotCount}>
-          <Text style={styles.spotCountNum}>50,000+</Text>
+          <Text style={styles.spotCountNum}>120,000+</Text>
           <Text style={styles.spotCountLabel}> {isJa ? 'スポット収録' : 'spots'}</Text>
         </Text>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -443,6 +447,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 36,
+    paddingBottom: 24,
+  },
+  slideScroll: {
+    width,
+    flex: 1,
+  },
+  slideScrollContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexGrow: 1,
     paddingHorizontal: 36,
     paddingBottom: 24,
   },

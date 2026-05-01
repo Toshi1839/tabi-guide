@@ -10,6 +10,7 @@ export interface GenreInfo {
 export const RESTAURANT_GENRES: GenreInfo[] = [
   { id: 'washoku',    label: '和食',           label_en: 'Japanese',    icon: '🍱' },
   { id: 'sushi',      label: '寿司',           label_en: 'Sushi',       icon: '🍣' },
+  { id: 'unagi',      label: 'うなぎ',         label_en: 'Eel',         icon: '🐟' },
   { id: 'soba',       label: '蕎麦・うどん',   label_en: 'Soba/Udon',  icon: '🍵' },
   { id: 'ramen',      label: 'ラーメン',       label_en: 'Ramen',       icon: '🍜' },
   { id: 'yakiniku',   label: '焼肉',           label_en: 'BBQ',         icon: '🥩' },
@@ -21,6 +22,7 @@ export const RESTAURANT_GENRES: GenreInfo[] = [
   { id: 'ethnic',     label: 'エスニック',     label_en: 'Ethnic',      icon: '🌏' },
   { id: 'cafe',       label: 'カフェ',         label_en: 'Cafe',        icon: '☕' },
   { id: 'sweets',     label: 'スイーツ',       label_en: 'Sweets',      icon: '🍰' },
+  { id: 'bar',        label: 'バー',           label_en: 'Bar',         icon: '🍸' },
   { id: 'craft_beer',  label: 'クラフトビール', label_en: 'Craft Beer',  icon: '🍺' },
   { id: 'vegetarian', label: 'ベジタリアン',   label_en: 'Vegetarian',  icon: '🥗' },
   { id: 'other',      label: 'その他',         label_en: 'Other',       icon: '🍽️' },
@@ -31,4 +33,5 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: 'attraction',     label: '観光名所',   label_en: 'Attractions',     icon: '🗺️' },
   { id: 'restaurant',     label: 'グルメ',     label_en: 'Food',            icon: '🍜' },
   { id: 'heritage',       label: '文化遺産',   label_en: 'Heritage',        icon: '🏛️' },
+  { id: 'toilet',         label: 'トイレ',     label_en: 'Toilet',          icon: '🚻' },
 ];

@@ -85,11 +85,16 @@ export async function sendChatMessage(
   }
 
   // ジャンル・評価をdescriptionから抽出
+  const isCraftBeer = !!(spot as any)._isCraftBeer;
   const ratingMatch = spot.description?.match(/食べログ([\d.]+)/);
   const rating = spot.rating ?? (ratingMatch ? parseFloat(ratingMatch[1]) : null);
   const genreMatch = spot.description?.match(/^([^。]+)。/);
   const genre = genreMatch ? genreMatch[1] : null;
   const isRestaurant = spot.category === 'restaurant';
+  const ratingSource = isCraftBeer ? 'Google Maps' : '食べログ';
+
+  // 食べログ評価をdescriptionから除去してAIに渡す
+  const cleanDesc = (text?: string) => text?.replace(/食べログ[\d.]+[。.]?\s*/g, '').trim() || '';
 
   // スポット情報をコンテキストとして組み込む
   const spotContext = language === 'en'
@@ -97,8 +102,8 @@ export async function sendChatMessage(
         `Name: ${spot.name_en || spot.name}`,
         `Category: ${spot.category}`,
         genre ? `Cuisine/Type: ${genre}` : '',
-        rating ? `Tabelog rating: ${rating} / 5.0 (Japan's top restaurant review site)` : '',
-        `Description: ${spot.description_en || spot.description}`,
+        isCraftBeer && rating ? `Google Maps rating: ${rating} / 5.0` : '',
+        `Description: ${cleanDesc(spot.description_en || spot.description)}`,
         `Audio guide: ${spot.audio_text_en || spot.audio_text}`,
         spot.address ? `Address: ${spot.address}` : '',
         wikiContext ? `\nWikipedia:\n${wikiContext}` : '',
@@ -107,8 +112,8 @@ export async function sendChatMessage(
         `スポット名: ${spot.name}`,
         `カテゴリ: ${spot.category}`,
         genre ? `ジャンル: ${genre}` : '',
-        rating ? `食べログ評価: ${rating} / 5.0` : '',
-        `説明: ${spot.description}`,
+        isCraftBeer && rating ? `Google Maps評価: ${rating} / 5.0` : '',
+        `説明: ${cleanDesc(spot.description)}`,
         `音声ガイド: ${spot.audio_text}`,
         spot.address ? `住所: ${spot.address}` : '',
         wikiContext ? `\nWikipedia情報:\n${wikiContext}` : '',
@@ -116,11 +121,18 @@ export async function sendChatMessage(
 
   // カテゴリ別の専門知識プロンプト
   const categoryGuidance: Record<string, string> = {
-    restaurant: `料理・飲食店の専門家として:
+    restaurant: isCraftBeer
+      ? `クラフトビール・ビアバーの専門家として:
+- 店舗の特徴・提供しているビールの傾向（IPA、スタウト、ピルスナー等）
+- Google Maps評価${rating ? rating + '点' : ''}を踏まえた店舗の質の説明
+- クラフトビール初心者向けのおすすめ、注文のコツ
+- 価格帯の目安、フードメニューの傾向、雰囲気
+- 予約の必要性、混雑時間帯、入店のコツなど実用的な情報`
+      : `料理・飲食店の専門家として:
 - ジャンルの特徴・食材・調理法・代表的なメニューを具体的に説明
-- 食べログ${rating ? rating + '点' : ''}という評価の意味（3.5以上は上位5%以内の優良店）を踏まえた質の説明
 - 価格帯の目安（ジャンルから推測）、注文方法のコツ、人気メニューの傾向
-- 予約の必要性、混雑時間帯、入店のコツなど実用的な情報`,
+- 予約の必要性、混雑時間帯、入店のコツなど実用的な情報
+- 食べログの評価点数には絶対に言及しないこと`,
     temple: `寺社仏閣・神社・寺の専門家として:
 - 創建の経緯・時代背景・関連する歴史上の人物・出来事
 - 祀られている神仏・本尊・御利益の詳細な説明
@@ -176,7 +188,8 @@ YOUR ROLE: Use the spot info above as a starting point, then EXPAND with your de
 - For temples/shrines: explain the deity, ritual practices, architectural style, legends.
 - NEVER say "check the website" or "see Tabelog." Answer directly with your knowledge.
 - Real-time info only (today's wait, current hours): admit you don't know.
-- If the user asks something unrelated to this spot or travel in Japan, politely say "I can only answer questions about this spot" and redirect to the spot.
+- If the user asks about other historical sites, monuments, statues, or cultural features AT THIS LOCATION or NEARBY, answer them with your knowledge — they are part of the same place.
+- Only redirect if the question is truly unrelated (e.g. weather, news, general trivia not connected to this place or area).
 - 2-4 sentences, specific and engaging. Always respond in English.`
     : `あなたは日本の${spot.category}に深く精通したAIガイドです。ユーザーはこのスポットに立っています:
 
@@ -190,7 +203,8 @@ ${guidance}
 - 「食べログを確認してください」「公式サイトをご覧ください」は絶対NG
 - 説明文をそのまま言い換えるだけの回答はNG
 - 「詳細は〜でご確認を」という逃げ回答はNG
-- スポットと無関係な質問（天気・ニュース・一般知識等）には「このスポットに関する質問にお答えしています」と返答し、スポットの話題に誘導する
+- 同じ場所や周辺にある別の史跡・記念碑・石碑・像・建造物などに関する質問は、あなたの知識で積極的に回答する（同じ場所の一部として扱う）
+- 拒否するのは本当に無関係な質問のみ（天気・ニュース・このエリアと無関係な一般知識等）
 
 OK:
 - 説明文に書かれていない具体的な情報を追加する

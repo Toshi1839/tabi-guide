@@ -49,6 +49,7 @@ function Slide1({ language }: { language: 'ja' | 'en' }) {
           <View style={styles.badge}><Text style={styles.badgeText}>🗺️ {isJa ? '観光名所' : 'Attractions'}</Text></View>
           <View style={styles.badge}><Text style={styles.badgeText}>🏛️ {isJa ? '文化遺産' : 'Heritage'}</Text></View>
           <View style={[styles.badge, styles.badgeOrange]}><Text style={styles.badgeText}>🍜 {isJa ? 'グルメ' : 'Food'}</Text></View>
+          <View style={styles.badge}><Text style={styles.badgeText}>🚻 {isJa ? 'トイレ' : 'Toilet'}</Text></View>
         </View>
         <Text style={[styles.boxSectionTitle, { marginTop: 14 }]}>
           {isJa ? '対象地域' : 'Coverage'}
@@ -64,7 +65,7 @@ function Slide1({ language }: { language: 'ja' | 'en' }) {
         </Text>
         <View style={styles.boxDivider} />
         <Text style={styles.spotCount}>
-          <Text style={styles.spotCountNum}>18,000+</Text>
+          <Text style={styles.spotCountNum}>50,000+</Text>
           <Text style={styles.spotCountLabel}> {isJa ? 'スポット収録' : 'spots'}</Text>
         </Text>
       </View>
@@ -99,8 +100,12 @@ function Slide2({ language }: { language: 'ja' | 'en' }) {
           <Text style={styles.planText}>{isJa ? '史跡・寺社・観光名所・文化遺産' : 'History & Shrine / Attractions / Heritage'}</Text>
         </View>
         <View style={styles.planRow}>
-          <View style={[styles.badge, styles.badgeOrange]}><Text style={styles.badgeText}>📍 5km</Text></View>
-          <Text style={styles.planText}>{isJa ? 'グルメ' : 'Food'}</Text>
+          <View style={[styles.badge, styles.badgeOrange]}><Text style={styles.badgeText}>📍 5km〜</Text></View>
+          <Text style={styles.planText}>{isJa ? 'グルメ（周辺に少ない場合は自動で範囲を拡大）' : 'Food (auto-expands if few nearby)'}</Text>
+        </View>
+        <View style={styles.planRow}>
+          <View style={styles.badge}><Text style={styles.badgeText}>📍 500m</Text></View>
+          <Text style={styles.planText}>{isJa ? 'トイレ' : 'Toilet'}</Text>
         </View>
       </View>
     </View>
@@ -164,8 +169,8 @@ function Slide4({ language }: { language: 'ja' | 'en' }) {
           <View style={[styles.badge, styles.badgeOrange]}><Text style={styles.badgeText}>¥500</Text></View>
           <Text style={styles.planText}>
             {isJa
-              ? 'グルメパック：全ジャンル（カテゴリー選択可）\n食べログ評価＋リンク付き（買切）'
-              : 'Gourmet Pack: All genres (selectable)\nTabelog rating + link (one-time)'}
+              ? 'グルメパック：全ジャンル（カテゴリー選択可）\nグルメサイトの店舗情報＋リンク付き（買切）'
+              : 'Gourmet Pack: All genres (selectable)\nRestaurant info + links (one-time)'}
           </Text>
         </View>
         <View style={styles.planRow}>
@@ -221,7 +226,7 @@ function Slide5Survey({ language, onAnswer }: { language: 'ja' | 'en'; onAnswer:
   return (
     <ScrollView
       style={{ width }}
-      contentContainerStyle={[styles.slide, { justifyContent: 'flex-start', paddingTop: 16, paddingBottom: 120 }]}
+      contentContainerStyle={{ width, alignItems: 'center', paddingHorizontal: 36, paddingTop: 16, paddingBottom: 120 }}
       showsVerticalScrollIndicator={true}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -320,7 +325,7 @@ const SLIDE_KEYS = ['1', '2', '3', '4', '5', '6'];
 
 export default function OnboardingScreen({ language, onComplete, isReplay = false }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+  // flatListRef removed - using conditional rendering instead
   const surveyData = useRef<Record<string, string>>({});
 
   const isLast = currentIndex === SLIDE_KEYS.length - 1;
@@ -333,9 +338,7 @@ export default function OnboardingScreen({ language, onComplete, isReplay = fals
     if (isLast) {
       await handleComplete();
     } else {
-      const nextIndex = currentIndex + 1;
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
-      setCurrentIndex(nextIndex);
+      setCurrentIndex(currentIndex + 1);
     }
   };
 
@@ -384,23 +387,10 @@ export default function OnboardingScreen({ language, onComplete, isReplay = fals
         </TouchableOpacity>
       )}
 
-      {/* スライド */}
-      <FlatList
-        ref={flatListRef}
-        data={SLIDE_KEYS}
-        renderItem={renderSlide}
-        keyExtractor={(item) => item}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
-        style={styles.flatList}
-        getItemLayout={(_, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
-      />
+      {/* スライド（FlatList廃止、条件分岐で表示） */}
+      <View style={styles.flatList}>
+        {renderSlide({ item: SLIDE_KEYS[currentIndex], index: currentIndex })}
+      </View>
 
       {/* ページインジケーター */}
       <View style={styles.dotsContainer}>

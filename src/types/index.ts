@@ -9,6 +9,7 @@ export type SpotCategory =
   | 'entertainment' // エンターテイメント
   | 'viewpoint'     // 展望・景観スポット
   | 'heritage'      // 文化遺産
+  | 'toilet'        // トイレ・公衆便所
   | 'shrine_history' // 史跡・寺社（統合カテゴリ）
   | 'attraction';   // 観光名所（nature + museum + viewpoint 統合カテゴリ）
 
@@ -38,6 +39,8 @@ export interface Spot {
   rating?: number;
   tabelog_url?: string;
   audio_url?: string;      // WaveNet TTS音声ファイルURL
+  _isFallback?: boolean;   // 半径拡大フォールバックで取得（ジャンルフィルタースキップ用）
+  _isCraftBeer?: boolean;  // Google Places APIから取得したクラフトビール店
 }
 
 // ユーザーの選択状態

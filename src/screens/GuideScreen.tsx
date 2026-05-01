@@ -31,7 +31,7 @@ import { Spot, SpotCategory } from '../types';
 import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { LocationService, getDistance } from '../services/location';
 import { SpeechService } from '../services/speech';
-import { fetchNearbySpots } from '../services/spots-api';
+import { fetchNearbySpots, fetchCraftBeerSpots } from '../services/spots-api';
 import SpotCard from '../components/SpotCard';
 import { Analytics } from '../services/analytics';
 
@@ -49,10 +49,12 @@ interface Props {
 const GENRE_KEYWORDS: Record<string, string[]> = {
   washoku:  ['和食', '日本料理', '割烹', '懐石', '会席', '鉄板焼'],
   sushi:    ['寿司', '鮨', 'すし'],
+  unagi:    ['うなぎ', 'ウナギ', '鰻', '蒲焼'],
   ramen:    ['ラーメン', 'らーめん', '中華そば'],
   yakiniku: ['焼肉', '焼き肉'],
   yakitori: ['焼き鳥', '焼鳥', '串焼'],
   izakaya:  ['居酒屋'],
+  bar:      ['バー', 'Bar', 'BAR', 'ダイニングバー', 'ワインバー', 'カクテル', 'ウイスキー', 'スタンディングバー', 'オーセンティックバー'],
   chinese:  ['中華', '中国料理', '餃子', '担々麺'],
   italian:  ['イタリアン', 'イタリア料理', 'ピッツァ', 'パスタ'],
   french:   ['フレンチ', 'フランス料理'],
@@ -209,16 +211,25 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
       lastFetchPos.current = { lat: latitude, lng: longitude };
       lastFetchTime.current = Date.now();
 
-      // レストランは5km、その他は2kmで取得
-      const nonRestaurantCategories = selectedCategories.filter(c => c !== 'restaurant');
+      // カテゴリ別の検索半径
+      // レストラン: 5km / トイレ: 500m / その他: 2km
+      const otherCategories = selectedCategories.filter(c => c !== 'restaurant' && c !== 'toilet');
       const hasRestaurant = selectedCategories.includes('restaurant');
+      const hasToilet = selectedCategories.includes('toilet');
 
-      const promises = [];
-      if (nonRestaurantCategories.length > 0) {
-        promises.push(fetchNearbySpots(latitude, longitude, 2000, nonRestaurantCategories));
+      const promises: Promise<any[]>[] = [];
+      if (otherCategories.length > 0) {
+        promises.push(fetchNearbySpots(latitude, longitude, 2000, otherCategories));
       }
       if (hasRestaurant) {
         promises.push(fetchNearbySpots(latitude, longitude, 5000, ['restaurant']));
+      }
+      if (hasToilet) {
+        promises.push(fetchNearbySpots(latitude, longitude, 500, ['toilet']));
+      }
+      // クラフトビール選択時はGoogle Places APIから取得
+      if (hasRestaurant && isPremium && selectedGenres.includes('craft_beer')) {
+        promises.push(fetchCraftBeerSpots(latitude, longitude, 5000));
       }
       if (promises.length === 0) {
         promises.push(fetchNearbySpots(latitude, longitude, 2000, selectedCategories));
@@ -227,29 +238,39 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
       Promise.all(promises)
         .then((results) => {
           const spots = results.flat();
-          // 重複除去
-          const unique = spots.filter((s, i) => spots.findIndex(x => x.id === s.id) === i);
+          // ID重複除去
+          let unique = spots.filter((s, i) => spots.findIndex(x => x.id === s.id) === i);
+          // Google Places(クラフトビール)の座標重複除去: 既存DBのレストランと50m以内なら除外
+          const dbRestaurants = unique.filter(s => s.category === 'restaurant' && !s._isCraftBeer);
+          unique = unique.filter(s => {
+            if (!s._isCraftBeer) return true;
+            const hasNearbyDup = dbRestaurants.some(db =>
+              getDistance(s.latitude, s.longitude, db.latitude, db.longitude) < 50
+            );
+            return !hasNearbyDup;
+          });
           if (!fetchAbortRef.current?.signal.aborted) {
             // レストランフィルター:
-            //   無料版 → ラーメンのみ（tabelog_url不要）
-            //   有料版 → 全レストラン + ジャンルフィルター（tabelog_urlなしも表示）
+            //   フォールバック（半径拡大）で取得したレストランはジャンルフィルターをスキップ
+            //   無料版 → ラーメンのみ（ただしフォールバック分は全表示）
+            //   有料版 → 全レストラン + ジャンルフィルター（ただしフォールバック分は全表示）
             const filtered = unique.filter(s => {
               if (s.category !== 'restaurant') return true;
+              if (s._isCraftBeer) return true; // Google Places APIから取得したクラフトビール
+              if ((s as any)._isFallback) return true; // 地方フォールバック: ジャンル関係なく表示
               if (!isPremium) return matchesGenre(s.description, ['ramen']);
               if (selectedGenres.length > 0) return matchesGenre(s.description, selectedGenres);
               return true;
             });
 
             // カテゴリ別に件数上限を適用（距離順）
-            // レストランのみ選択時は20件、他カテゴリと併用時は30件
-            const restaurantOnly =
-              selectedCategories.includes('restaurant') &&
-              selectedCategories.filter(c => c !== 'restaurant').length === 0;
+            // 無料：ラーメン20件、有料：全ジャンル40件
             const LIMITS: Partial<Record<SpotCategory, number>> = {
               shrine_history: 20,
               attraction: 15,
               heritage: 15,
-              restaurant: restaurantOnly ? 20 : 30,
+              restaurant: isPremium ? 40 : 20,
+              toilet: 10,
             };
             const countByCategory: Partial<Record<SpotCategory, number>> = {};
             const limited = filtered.filter(s => {
@@ -273,10 +294,12 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
         .finally(() => setIsLoading(false));
     }
 
-    // 近接チェック
+    // 近接チェック（自動ガイドOFF時はスキップ、トイレも自動トリガー対象外）
     if (!isGuiding || activeSpot) return;
+    if (!audioEnabled) return; // 自動ガイドOFF時はカード自動表示も音声もスキップ
     for (const spot of nearbySpots) {
       if (visitedIds.has(spot.id)) continue;
+      if (spot.category === 'toilet') continue; // トイレは自動カード表示しない（マップ表示のみ）
 
       const distance = getDistance(latitude, longitude, spot.latitude, spot.longitude);
       if (distance <= spot.radius) {
@@ -284,7 +307,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
         break;
       }
     }
-  }, [location, isGuiding, activeSpot, visitedIds, selectedCategories]);
+  }, [location, isGuiding, activeSpot, visitedIds, selectedCategories, audioEnabled]);
 
   // オーディオモード設定（イヤホン対応）
   useEffect(() => {
@@ -374,7 +397,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
         provider={PROVIDER_GOOGLE}
         language={language === 'en' ? 'en' : 'ja'}
         showsUserLocation
-        showsMyLocationButton
+        showsMyLocationButton={false}
         initialRegion={
           location
             ? {
@@ -419,16 +442,6 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
                   </Text>
                 </TouchableOpacity>
               </Marker>
-              <Circle
-                center={{
-                  latitude: spot.latitude,
-                  longitude: spot.longitude,
-                }}
-                radius={spot.radius}
-                fillColor="rgba(67, 97, 238, 0.1)"
-                strokeColor="rgba(67, 97, 238, 0.3)"
-                strokeWidth={1}
-              />
             </React.Fragment>
           );
         })}
@@ -515,18 +528,19 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
         </TouchableOpacity>
       )}
 
-      {/* 現在地ボタン */}
+      {/* 現在地ボタン（ズーム倍率は維持して中心のみ移動） */}
       {!activeSpot && location && (
         <TouchableOpacity
           style={styles.myLocationButton}
           onPress={() => {
             if (mapRef.current && location) {
-              mapRef.current.animateToRegion({
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                latitudeDelta: 0.015,
-                longitudeDelta: 0.015,
-              }, 500);
+              // animateCameraで中心のみ更新（ズームレベルは維持）
+              mapRef.current.animateCamera({
+                center: {
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                },
+              }, { duration: 500 });
             }
           }}
         >

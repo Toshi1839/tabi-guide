@@ -112,9 +112,11 @@ export default function SpotCard({ spot, onAudioPress, onDismiss, isPremium, isA
     onDismiss();
   };
 
+  const isCraftBeer = !!spot._isCraftBeer;
+
   const openTabelog = () => {
     let url = spot.tabelog_url || '';
-    if (language === 'en' && url) {
+    if (!isCraftBeer && language === 'en' && url) {
       // tabelog.com/chiba/... → tabelog.com/en/chiba/...
       url = url.replace('tabelog.com/', 'tabelog.com/en/');
     }
@@ -122,8 +124,11 @@ export default function SpotCard({ spot, onAudioPress, onDismiss, isPremium, isA
   };
 
   const openGoogleMap = async () => {
-    const searchQuery = spot.address ? `${spot.name} ${spot.address}` : spot.name;
-    const q = encodeURIComponent(searchQuery);
+    // トイレや住所なしスポットは座標で開く（名前だと不特定の結果になるため）
+    const useCoords = spot.category === 'toilet' || !spot.address;
+    const q = useCoords
+      ? `${spot.latitude},${spot.longitude}`
+      : encodeURIComponent(`${spot.name} ${spot.address}`);
     // Google Mapsアプリを直接起動（ダイアログ不要）
     const googleMapsApp = `comgooglemaps://?q=${q}`;
     const appleMaps = `maps://?q=${q}`;
@@ -210,11 +215,13 @@ export default function SpotCard({ spot, onAudioPress, onDismiss, isPremium, isA
           <Text style={styles.mapLinkText}>Google Map</Text>
         </TouchableOpacity>
 
-        {/* 有料版かつ食べログ評価がある場合のみリンク表示 */}
+        {/* 有料版かつ評価・リンクがある場合のみ表示 */}
         {isRestaurant && isPremium && rating && spot.tabelog_url && (
           <TouchableOpacity onPress={openTabelog} style={styles.tabelogButton}>
             <Text style={styles.tabelogButtonText}>
-              {language === 'en' ? 'View on Tabelog' : '食べログで見る'}
+              {isCraftBeer
+                ? 'Google Maps'
+                : (language === 'en' ? 'View Details' : '詳細を見る')}
             </Text>
           </TouchableOpacity>
         )}

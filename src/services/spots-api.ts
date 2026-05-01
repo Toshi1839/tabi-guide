@@ -3,6 +3,8 @@ import { Spot, SpotCategory } from '../types';
 import { SAMPLE_SPOTS } from '../data/sample-spots';
 import { getDistance } from './location';
 
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_API_KEY || '';
+
 // Supabaseから近傍スポットを取得
 // shrine_history → historical + temple に展開
 function expandCategories(categories?: SpotCategory[]): string[] | null {
@@ -42,45 +44,52 @@ export async function fetchNearbySpots(
 
     let spots = data || [];
 
-    // レストランは5km範囲で追加取得
+    // レストランは最低10件を確保（段階的に半径拡大）
+    const MIN_RESTAURANTS = 10;
     if (categories?.includes('restaurant')) {
-      const restaurantsIn2km = spots.filter((s: any) => s.category === 'restaurant');
+      const currentRestaurants = spots.filter((s: any) => s.category === 'restaurant');
 
-      if (restaurantsIn2km.length < 3) {
-        // 5km範囲でレストランを追加取得
-        const { data: widerData } = await supabase.rpc('nearby_spots', {
-          user_lat: lat,
-          user_lng: lng,
-          radius_m: 5000,
-          categories: ['restaurant'],
-        });
+      if (currentRestaurants.length < MIN_RESTAURANTS) {
+        // 段階的に半径を拡大して最低10件を確保
+        const expandRadii = [10000, 20000, 30000];
+        for (const r of expandRadii) {
+          if (r <= radiusM) continue; // 既に検索済みの半径はスキップ
+          const restaurantCount = spots.filter((s: any) => s.category === 'restaurant').length;
+          if (restaurantCount >= MIN_RESTAURANTS) break;
 
-        if (widerData && widerData.length > 0) {
-          const existingIds = new Set(spots.map((s: any) => s.id));
-          const newSpots = widerData.filter((s: any) => !existingIds.has(s.id));
-          spots = [...spots, ...newSpots];
-        }
-
-        // 5km以内にもない場合、10km範囲のトップ10
-        const totalRestaurants = spots.filter((s: any) => s.category === 'restaurant').length;
-        if (totalRestaurants === 0) {
-          const { data: topData } = await supabase.rpc('nearby_spots', {
+          const { data: widerData } = await supabase.rpc('nearby_spots', {
             user_lat: lat,
             user_lng: lng,
-            radius_m: 10000,
+            radius_m: r,
             categories: ['restaurant'],
           });
 
-          if (topData && topData.length > 0) {
-            const areaTopSpots = topData
-              .filter((s: any) => s.is_area_top)
-              .slice(0, 10);
-            const topSpots = areaTopSpots.length > 0 ? areaTopSpots : topData.slice(0, 10);
+          if (widerData && widerData.length > 0) {
             const existingIds = new Set(spots.map((s: any) => s.id));
-            const newTopSpots = topSpots.filter((s: any) => !existingIds.has(s.id));
-            spots = [...spots, ...newTopSpots];
+            const newSpots = widerData.filter((s: any) => !existingIds.has(s.id));
+            spots = [...spots, ...newSpots];
           }
         }
+
+        // 評価順にソートし、3.5以上を優先 → 不足分を3.5未満で補充
+        const restaurants = spots.filter((s: any) => s.category === 'restaurant');
+        const getRating = (s: any) => s.rating || s.tabelog_rating || 0;
+        const above35 = restaurants.filter((s: any) => getRating(s) >= 3.5)
+          .sort((a: any, b: any) => getRating(b) - getRating(a));
+        const below35 = restaurants.filter((s: any) => getRating(s) < 3.5)
+          .sort((a: any, b: any) => getRating(b) - getRating(a));
+        const topRestaurants = [...above35, ...below35].slice(0, Math.max(MIN_RESTAURANTS, above35.length));
+        const topIds = new Set(topRestaurants.map((s: any) => s.id));
+
+        // レストラン以外のスポット + 選別されたレストラン
+        const nonRestaurants = spots.filter((s: any) => s.category !== 'restaurant');
+        // フォールバックで取得したレストランにフラグを付与
+        const originalIds = new Set((data || []).filter((s: any) => s.category === 'restaurant').map((s: any) => s.id));
+        const selectedRestaurants = topRestaurants.map((s: any) => ({
+          ...s,
+          _isFallback: !originalIds.has(s.id),
+        }));
+        spots = [...nonRestaurants, ...selectedRestaurants];
       }
     }
 
@@ -115,6 +124,62 @@ export async function fetchNearbySpots(
   } catch (e) {
     console.error('fetchNearbySpots error:', e);
     return fallbackToLocal(lat, lng, radiusM, categories);
+  }
+}
+
+// Google Places APIでクラフトビール店を検索
+export async function fetchCraftBeerSpots(
+  lat: number,
+  lng: number,
+  radiusM: number = 5000
+): Promise<Spot[]> {
+  if (!GOOGLE_API_KEY) return [];
+  try {
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_API_KEY,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.googleMapsUri,places.editorialSummary',
+      },
+      body: JSON.stringify({
+        textQuery: 'クラフトビール ビアバー ブルワリー',
+        locationBias: {
+          circle: {
+            center: { latitude: lat, longitude: lng },
+            radius: radiusM,
+          },
+        },
+        languageCode: 'ja',
+        maxResultCount: 20,
+      }),
+    });
+    const data = await response.json();
+    if (!data.places) return [];
+
+    return data.places
+      .filter((p: any) => {
+        if (!p.location) return false;
+        const dist = getDistance(lat, lng, p.location.latitude, p.location.longitude);
+        return dist <= radiusM;
+      })
+      .map((p: any) => ({
+        id: `gp_craft_${p.id}`,
+        name: p.displayName?.text || '',
+        description: `クラフトビール・ビアバー。${p.rating ? `Google ${p.rating}` : ''}`,
+        audio_text: p.editorialSummary?.text || `${p.displayName?.text || ''}はクラフトビールが楽しめるお店です。`,
+        category: 'restaurant' as SpotCategory,
+        latitude: p.location.latitude,
+        longitude: p.location.longitude,
+        radius: 100,
+        address: p.formattedAddress,
+        rating: p.rating,
+        tabelog_url: p.googleMapsUri,
+        _isCraftBeer: true,
+      }));
+  } catch (e) {
+    console.warn('fetchCraftBeerSpots error:', e);
+    return [];
   }
 }
 

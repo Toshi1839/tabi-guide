@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Alert } from 'react-native';
+import { Alert, NativeModules, Platform } from 'react-native';
+
+// 端末の言語設定を取得（'ja' or 'en'）
+function getDeviceLanguage(): 'ja' | 'en' {
+  try {
+    const locale = Platform.OS === 'ios'
+      ? (NativeModules.SettingsManager?.settings?.AppleLocale ||
+         NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] || 'en')
+      : (NativeModules.I18nManager?.localeIdentifier || 'en');
+    return String(locale).toLowerCase().startsWith('ja') ? 'ja' : 'en';
+  } catch {
+    return 'ja';
+  }
+}
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SpotCategory } from './src/types';
@@ -28,7 +41,7 @@ export default function App() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [isGourmetPremium, setIsGourmetPremium] = useState(false);
   const [isAiChatPremium, setIsAiChatPremium] = useState(false);
-  const [language, setLanguage] = useState<'ja' | 'en'>('ja');
+  const [language, setLanguage] = useState<'ja' | 'en'>(getDeviceLanguage());
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   useEffect(() => {
@@ -58,20 +71,34 @@ export default function App() {
       }
     });
 
-    initIAP().then(ok => {
+    initIAP().then(async (ok) => {
       if (!ok) return;
+      // 起動時に購入復元（別デバイスでの購入を反映）
+      try {
+        const restored = await restorePurchases();
+        if (restored.gourmet) setIsGourmetPremium(true);
+        if (restored.aiChat) setIsAiChatPremium(true);
+      } catch {}
       const cleanup = setupPurchaseListeners(
-        // グルメパック購入成功
+        // グルメパック購入成功（既に購入済みならアラートを出さない）
         () => {
-          setIsGourmetPremium(true);
-          Analytics.trackGourmetPurchase();
-          Alert.alert('購入完了!', 'グルメパックが解放されました。');
+          setIsGourmetPremium(prev => {
+            if (!prev) {
+              Analytics.trackGourmetPurchase();
+              Alert.alert('購入完了!', 'グルメパックが解放されました。');
+            }
+            return true;
+          });
         },
-        // AIチャットサブスク購入成功
+        // AIチャットサブスク購入成功（既に購入済みならアラートを出さない）
         () => {
-          setIsAiChatPremium(true);
-          Analytics.trackAiChatPurchase();
-          Alert.alert('購入完了!', 'AIチャットが無制限になりました。');
+          setIsAiChatPremium(prev => {
+            if (!prev) {
+              Analytics.trackAiChatPurchase();
+              Alert.alert('購入完了!', 'AIチャットが無制限になりました。');
+            }
+            return true;
+          });
         },
         // エラー
         (msg) => {
@@ -112,9 +139,8 @@ export default function App() {
     if (error === 'cancelled') return;
     if (success) {
       setIsAiChatPremium(true);
-    } else if (error) {
-      Alert.alert('エラー', error);
     }
+    // エラーアラートは表示しない（Apple審査対策）
   };
 
   const handleRestorePurchases = async () => {
@@ -151,7 +177,9 @@ export default function App() {
         <CategorySelectScreen
           onStart={handleStart}
           isPremium={isGourmetPremium}
+          isAiChatPremium={isAiChatPremium}
           onPurchase={handleGourmetPurchase}
+          onAiChatPurchase={handleAiChatPurchase}
           onRestorePurchases={handleRestorePurchases}
           language={language}
           onLanguageChange={setLanguage}

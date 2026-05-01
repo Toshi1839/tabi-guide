@@ -9,6 +9,7 @@ import {
   Dimensions,
   ScrollView,
   Alert,
+  Linking,
 } from 'react-native';
 import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { SpotCategory } from '../types';
@@ -20,7 +21,9 @@ const CARD_WIDTH = (width - 40 - CARD_MARGIN * 4) / 2;
 interface Props {
   onStart: (categories: SpotCategory[], genres: string[]) => void;
   isPremium: boolean;
+  isAiChatPremium: boolean;
   onPurchase: () => void;
+  onAiChatPurchase: () => void;
   onRestorePurchases: () => void;
   language: 'ja' | 'en';
   onLanguageChange: (lang: 'ja' | 'en') => void;
@@ -36,20 +39,29 @@ const T = {
     deselectAll: 'すべて解除',
     selected: '選択中',
     packTitle: '🍽️ グルメパック',
-    packDescription: 'ラーメンは無料で表示。パック購入で全ジャンル解放 + 食べログ評価・リンク',
+    packDescription: 'ラーメンは無料で表示。パック購入で全ジャンル解放 + グルメ評価・リンク',
     purchaseButtonText: '¥500',
     purchasedBadge: '購入済み',
     restoreButton: '購入を復元',
     selectAllGenres: '全ジャンル選択',
     deselectAllGenres: '全解除',
     purchaseTitle: 'グルメパック',
-    purchaseMessage: 'ラーメン以外の全ジャンルが解放され、食べログの評価とリンクも表示されます。\n\n¥500（買い切り）',
+    purchaseMessage: 'ラーメン以外の全ジャンルが解放され、グルメサイトの評価とリンクも表示されます。\n\n¥500（買い切り）',
     cancel: 'キャンセル',
     purchase: '購入する',
     startButton: 'ガイドを開始する',
     startDisabled: 'カテゴリを選択してください',
     categoriesSelected: 'カテゴリ',
     genresSelected: 'ジャンル',
+    aiChatTitle: '🤖 AIチャット',
+    aiChatDescription: 'スポットについて何でもAIに質問。歴史・見どころ・グルメ情報など、深い知識を瞬時に。',
+    aiChatFree: '無料：1日3回まで',
+    aiChatPremium: '無制限：¥100/月（自動更新サブスクリプション）',
+    aiChatPurchaseButton: '¥100/月で登録',
+    aiChatSubscribed: '登録済み',
+    aiChatManage: '管理',
+    aiChatPurchaseTitle: 'AIチャット無制限プラン',
+    aiChatPurchaseMessage: 'AIチャットが無制限に利用できるようになります。\n\n¥100/月（自動更新サブスクリプション）\n\n・期間：1ヶ月（自動更新）\n・価格：¥100/月（税込）\n・解約：いつでもApp Storeの設定から可能',
   },
   en: {
     appName: 'AI Street Guide',
@@ -59,24 +71,33 @@ const T = {
     deselectAll: 'Deselect All',
     selected: 'selected',
     packTitle: '🍽️ Restaurant Pack',
-    packDescription: 'Ramen is free. Purchase to unlock all genres + Tabelog ratings & links',
+    packDescription: 'Ramen is free. Purchase to unlock all genres + ratings & links',
     purchaseButtonText: '¥500',
     purchasedBadge: 'Purchased',
     restoreButton: 'Restore Purchase',
     selectAllGenres: 'Select All Genres',
     deselectAllGenres: 'Deselect All',
     purchaseTitle: 'Restaurant Pack',
-    purchaseMessage: 'Unlock all genres except ramen, with Tabelog ratings and links.\n\n¥500 (one-time)',
+    purchaseMessage: 'Unlock all genres except ramen, with restaurant ratings and links.\n\n¥500 (one-time)',
     cancel: 'Cancel',
     purchase: 'Purchase',
     startButton: 'Start Guide',
     startDisabled: 'Please select a category',
     categoriesSelected: 'categories',
     genresSelected: 'genres',
+    aiChatTitle: '🤖 AI Chat',
+    aiChatDescription: 'Ask AI anything about spots. Get history, highlights, and food info instantly.',
+    aiChatFree: 'Free: 3 questions/day',
+    aiChatPremium: 'Unlimited: ¥100/month (auto-renewing subscription)',
+    aiChatPurchaseButton: 'Subscribe ¥100/mo',
+    aiChatSubscribed: 'Subscribed',
+    aiChatManage: 'Manage',
+    aiChatPurchaseTitle: 'AI Chat Unlimited',
+    aiChatPurchaseMessage: 'Get unlimited AI chat access.\n\n¥100/month (auto-renewing subscription)\n\n• Duration: 1 month (auto-renewing)\n• Price: ¥100/month (tax included)\n• Cancel: anytime in App Store settings',
   },
 };
 
-export default function CategorySelectScreen({ onStart, isPremium, onPurchase, onRestorePurchases, language, onLanguageChange, onShowGuide }: Props) {
+export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremium, onPurchase, onAiChatPurchase, onRestorePurchases, language, onLanguageChange, onShowGuide }: Props) {
   const t = T[language];
   const [selected, setSelected] = useState<Set<SpotCategory>>(new Set());
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
@@ -124,6 +145,21 @@ export default function CategorySelectScreen({ onStart, isPremium, onPurchase, o
         { text: t.purchase, onPress: onPurchase },
       ]
     );
+  };
+
+  const handleAiChatSubscribe = () => {
+    Alert.alert(
+      t.aiChatPurchaseTitle,
+      t.aiChatPurchaseMessage,
+      [
+        { text: t.cancel, style: 'cancel' },
+        { text: t.purchase, onPress: onAiChatPurchase },
+      ]
+    );
+  };
+
+  const handleManageAiChat = () => {
+    Linking.openURL('https://apps.apple.com/account/subscriptions');
   };
 
   const totalSelected = selected.size + (isPremium && selectedGenres.size > 0 ? 1 : 0);
@@ -267,6 +303,36 @@ export default function CategorySelectScreen({ onStart, isPremium, onPurchase, o
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          )}
+        </View>
+
+        {/* AIチャットセクション */}
+        <View style={styles.packSection}>
+          <View style={styles.packHeader}>
+            <Text style={styles.packTitle}>{t.aiChatTitle}</Text>
+            {!isAiChatPremium ? (
+              <TouchableOpacity style={styles.aiChatPurchaseButton} onPress={handleAiChatSubscribe}>
+                <Text style={styles.purchaseButtonText}>{t.aiChatPurchaseButton}</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.aiChatManageButton} onPress={handleManageAiChat}>
+                <Text style={styles.purchaseButtonText}>{t.aiChatManage}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.packDescription}>{t.aiChatDescription}</Text>
+          <View style={styles.aiChatPlanRow}>
+            <View style={styles.aiChatPlanBadge}><Text style={styles.aiChatPlanBadgeText}>{t.aiChatFree}</Text></View>
+          </View>
+          <View style={styles.aiChatPlanRow}>
+            <View style={[styles.aiChatPlanBadge, styles.aiChatPlanBadgePremium]}>
+              <Text style={styles.aiChatPlanBadgeText}>{t.aiChatPremium}</Text>
+            </View>
+          </View>
+          {isAiChatPremium && (
+            <View style={styles.premiumBadgeInline}>
+              <Text style={styles.premiumBadgeText}>{t.aiChatSubscribed}</Text>
             </View>
           )}
         </View>
@@ -638,5 +704,44 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 12,
     marginTop: 4,
+  },
+  aiChatPurchaseButton: {
+    backgroundColor: '#4361ee',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  aiChatManageButton: {
+    backgroundColor: '#64748b',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  aiChatPlanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  aiChatPlanBadge: {
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  aiChatPlanBadgePremium: {
+    backgroundColor: 'rgba(67, 97, 238, 0.2)',
+  },
+  aiChatPlanBadgeText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  premiumBadgeInline: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 8,
   },
 });

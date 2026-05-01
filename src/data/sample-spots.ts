@@ -11,7 +11,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'historical',
     latitude: 35.82327,
     longitude: 139.91345,
-    radius: 200,
+    radius: 50,
     address: 'テスト用',
   },
   // === 松戸エリア（テスト用） ===
@@ -23,7 +23,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'temple',
     latitude: 35.780621,
     longitude: 139.897766,
-    radius: 150,
+    radius: 50,
     address: '千葉県松戸市松戸1457',
   },
   {
@@ -34,7 +34,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'historical',
     latitude: 35.777476,
     longitude: 139.899189,
-    radius: 200,
+    radius: 50,
     address: '千葉県松戸市松戸642-1',
   },
   {
@@ -45,7 +45,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'nature',
     latitude: 35.805545,
     longitude: 139.941012,
-    radius: 400,
+    radius: 50,
     address: '千葉県松戸市千駄堀269',
   },
   {
@@ -56,7 +56,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'museum',
     latitude: 35.800897,
     longitude: 139.93947,
-    radius: 150,
+    radius: 50,
     address: '千葉県松戸市千駄堀671',
   },
   {
@@ -67,7 +67,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'restaurant',
     latitude: 35.7834,
     longitude: 139.8980,
-    radius: 200,
+    radius: 50,
     address: '千葉県松戸市松戸駅西口周辺',
   },
   {
@@ -78,7 +78,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'shopping',
     latitude: 35.78530,
     longitude: 139.90060,
-    radius: 100,
+    radius: 50,
     address: '千葉県松戸市松戸1307-1',
   },
   // === 東京エリア ===
@@ -90,7 +90,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'temple',
     latitude: 35.7148,
     longitude: 139.7967,
-    radius: 200,
+    radius: 50,
     address: '東京都台東区浅草2-3-1',
   },
   {
@@ -101,7 +101,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'viewpoint',
     latitude: 35.7101,
     longitude: 139.8107,
-    radius: 300,
+    radius: 50,
     address: '東京都墨田区押上1-1-2',
   },
   {
@@ -112,7 +112,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'nature',
     latitude: 35.7146,
     longitude: 139.7732,
-    radius: 400,
+    radius: 50,
     address: '東京都台東区上野公園',
   },
   {
@@ -123,7 +123,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'restaurant',
     latitude: 35.6654,
     longitude: 139.7707,
-    radius: 200,
+    radius: 50,
     address: '東京都中央区築地4丁目',
   },
   {
@@ -134,7 +134,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'temple',
     latitude: 35.6764,
     longitude: 139.6993,
-    radius: 300,
+    radius: 50,
     address: '東京都渋谷区代々木神園町1-1',
   },
   {
@@ -145,7 +145,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'historical',
     latitude: 35.6852,
     longitude: 139.7528,
-    radius: 400,
+    radius: 50,
     address: '東京都千代田区千代田1-1',
   },
   {
@@ -156,7 +156,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'museum',
     latitude: 35.7189,
     longitude: 139.7765,
-    radius: 200,
+    radius: 50,
     address: '東京都台東区上野公園13-9',
   },
   {
@@ -167,7 +167,7 @@ export const SAMPLE_SPOTS: Spot[] = [
     category: 'shopping',
     latitude: 35.6717,
     longitude: 139.7649,
-    radius: 300,
+    radius: 50,
     address: '東京都中央区銀座',
   },
 ];

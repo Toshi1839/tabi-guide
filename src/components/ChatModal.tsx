@@ -132,11 +132,25 @@ export default function ChatModal({ visible, spot, isAiChatPremium, onAiChatPurc
 
           {/* 残り回数表示＋サブスク案内（無料ユーザーのみ） */}
           {!isAiChatPremium && (
-            <View style={styles.limitBar}>
-              <Text style={styles.limitText}>{T.freeLimit}</Text>
-              <TouchableOpacity onPress={onAiChatPurchase} style={styles.subscribeButton}>
-                <Text style={styles.subscribeText}>{language === 'en' ? 'Unlimited ¥100/mo' : '無制限 ¥100/月'}</Text>
-              </TouchableOpacity>
+            <View>
+              <View style={styles.limitBar}>
+                <Text style={styles.limitText}>{T.freeLimit}</Text>
+                <TouchableOpacity onPress={onAiChatPurchase} style={styles.subscribeButton}>
+                  <Text style={styles.subscribeText}>{language === 'en' ? 'Unlimited ¥100/mo' : '無制限 ¥100/月'}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.legalLinks}>
+                <Text style={styles.legalText}>
+                  {language === 'en' ? 'Auto-renewable subscription. ' : '自動更新サブスクリプション '}
+                </Text>
+                <TouchableOpacity onPress={() => Linking.openURL('https://toshi1839.github.io/tabi-guide-privacy/')}>
+                  <Text style={styles.legalLink}>{language === 'en' ? 'Privacy Policy' : 'プライバシーポリシー'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.legalText}> | </Text>
+                <TouchableOpacity onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}>
+                  <Text style={styles.legalLink}>{language === 'en' ? 'Terms of Use' : '利用規約'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -249,6 +263,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   subscribeText: { fontSize: 11, color: '#fff', fontWeight: '600' },
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+    backgroundColor: '#fff8e1',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ffe082',
+    flexWrap: 'wrap',
+  },
+  legalText: { fontSize: 9, color: '#999' },
+  legalLink: { fontSize: 9, color: '#4361ee', textDecorationLine: 'underline' },
   manageButton: {
     backgroundColor: '#e0e0e0',
     paddingHorizontal: 10,

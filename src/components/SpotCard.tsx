@@ -215,8 +215,8 @@ export default function SpotCard({ spot, onAudioPress, onDismiss, isPremium, isA
           <Text style={styles.mapLinkText}>Google Map</Text>
         </TouchableOpacity>
 
-        {/* 有料版かつ評価・リンクがある場合のみ表示 */}
-        {isRestaurant && isPremium && rating && spot.tabelog_url && (
+        {/* 有料版かつ食べログURLがある場合に表示（評価点は食べログ言及禁止対応でDescriptionから削除済みのため条件から除外） */}
+        {isRestaurant && isPremium && spot.tabelog_url && (
           <TouchableOpacity onPress={openTabelog} style={styles.tabelogButton}>
             <Text style={styles.tabelogButtonText}>
               {isCraftBeer

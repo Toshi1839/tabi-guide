@@ -104,7 +104,11 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 export default function GuideScreen({ selectedCategories, selectedGenres, isPremium, isAiChatPremium, onAiChatPurchase, onStop, language }: Props) {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [activeSpot, setActiveSpot] = useState<Spot | null>(null);
-  const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
+  // 自動再生クールダウン用：spot.id → 最終再生timestamp(ms)
+  // AsyncStorage で永続化（アプリ再起動後も10分判定が維持される）
+  const [visitedAt, setVisitedAt] = useState<Record<string, number>>({});
+  const COOLDOWN_MS = 10 * 60 * 1000; // 10分
+  const VISITED_AT_KEY = 'visited_at';
   const [isGuiding, setIsGuiding] = useState(true);
   const [nearbySpots, setNearbySpots] = useState<Spot[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,6 +124,35 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
   useEffect(() => {
     AsyncStorage.getItem('audio_enabled').then(val => {
       if (val === 'false') setAudioEnabled(false);
+    });
+  }, []);
+
+  // 再生履歴(visitedAt)を読み込み + 24時間以上前のエントリを掃除
+  useEffect(() => {
+    AsyncStorage.getItem(VISITED_AT_KEY).then(raw => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const cleaned: Record<string, number> = {};
+        for (const [id, ts] of Object.entries(parsed)) {
+          if (typeof ts === 'number' && ts > cutoff) cleaned[id] = ts;
+        }
+        setVisitedAt(cleaned);
+        // 掃除後の状態を書き戻し
+        if (Object.keys(cleaned).length !== Object.keys(parsed).length) {
+          AsyncStorage.setItem(VISITED_AT_KEY, JSON.stringify(cleaned)).catch(() => {});
+        }
+      } catch {}
+    });
+  }, []);
+
+  // 再生履歴を記録（クールダウン判定用）
+  const recordVisit = useCallback((spotId: string) => {
+    setVisitedAt(prev => {
+      const next = { ...prev, [spotId]: Date.now() };
+      AsyncStorage.setItem(VISITED_AT_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
     });
   }, []);
 
@@ -308,8 +341,11 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
     // 近接チェック（自動ガイドOFF時はスキップ、トイレも自動トリガー対象外）
     if (!isGuiding || activeSpot) return;
     if (!audioEnabled) return; // 自動ガイドOFF時はカード自動表示も音声もスキップ
+    const now = Date.now();
     for (const spot of nearbySpots) {
-      if (visitedIds.has(spot.id)) continue;
+      // 10分以内に再生済みのスポットは自動再生スキップ（手動タップは別経路で許可）
+      const lastVisit = visitedAt[spot.id];
+      if (lastVisit && now - lastVisit < COOLDOWN_MS) continue;
       if (spot.category === 'toilet') continue; // トイレは自動カード表示しない（マップ表示のみ）
 
       const distance = getDistance(latitude, longitude, spot.latitude, spot.longitude);
@@ -318,7 +354,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
         break;
       }
     }
-  }, [location, isGuiding, activeSpot, visitedIds, selectedCategories, audioEnabled]);
+  }, [location, isGuiding, activeSpot, visitedAt, selectedCategories, audioEnabled]);
 
   // オーディオモード設定（イヤホン対応）
   useEffect(() => {
@@ -355,7 +391,8 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
   // スポットカードの表示
   const triggerSpot = useCallback((spot: Spot, isAuto: boolean = false) => {
     setActiveSpot(spot);
-    setVisitedIds((prev) => new Set(prev).add(spot.id));
+    // 自動再生・手動タップどちらも履歴に記録（次回以降の自動再生クールダウン対象）
+    recordVisit(spot.id);
     Analytics.trackSpotView(spot);
 
     // 自動表示の場合は通知音 + 音声ガイド自動再生（音声ONの場合のみ）
@@ -374,7 +411,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
       tension: 40,
       friction: 8,
     }).start();
-  }, [slideAnim, playNotificationSound, audioEnabled]);
+  }, [slideAnim, playNotificationSound, audioEnabled, recordVisit]);
 
   // スポットカードを閉じる
   const dismissSpot = useCallback(() => {
@@ -428,7 +465,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
       >
         {nearbySpots.map((spot) => {
           const cat = getCategoryInfo(spot.category);
-          const isVisited = visitedIds.has(spot.id);
+          const isVisited = !!visitedAt[spot.id];
           return (
             <React.Fragment key={spot.id}>
               <Marker
@@ -507,7 +544,7 @@ export default function GuideScreen({ selectedCategories, selectedGenres, isPrem
             )}
           </ScrollView>
           <Text style={styles.visitCount}>
-            {visitedIds.size}/{nearbySpots.length}
+            {nearbySpots.filter(s => visitedAt[s.id]).length}/{nearbySpots.length}
           </Text>
           <TouchableOpacity
             style={styles.audioToggleButton}

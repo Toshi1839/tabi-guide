@@ -1,3 +1,21 @@
+/**
+ * 全スポットの英語コンテンツ (name_en, description_en, audio_text_en) を Claude API で生成し
+ * Supabase に PATCH で書き戻すスクリプト。
+ *
+ * 実行: node scripts/generate-english-all.js
+ *
+ * 環境変数（.env で管理、ローカル実行のみ）:
+ *   CLAUDE_API_KEY  - Anthropic Claude API キー（バッチ用、配信アプリのキーとは別管理）
+ *   SUPABASE_KEY    - Supabase service_role キー
+ *
+ * ⚠️ 運用ポリシー（2026-05-06 確定）:
+ *   - GitHub Actions / GitHub Secrets での運用は禁止（漏洩リスク回避）
+ *   - 過去あった `.github/workflows/generate-english.yml` は削除済み
+ *   - 新規スポット追加時にローカルで手動実行すること
+ *   - 配信アプリの AI チャット用キーとは絶対に共用しないこと（Edge Function 側で別キー管理）
+ *   - 詳細: docs/monetization.md / .claude/session-log-2026-05-05.md
+ */
+
 const https = require('https');
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';

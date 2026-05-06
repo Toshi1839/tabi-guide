@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Spot } from '../types';
+import { supabase } from './supabase';
 
-const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '';
 const FREE_DAILY_LIMIT = 3;
 
 // Wikipedia APIからスポット情報を取得
@@ -219,28 +219,28 @@ OK:
   ];
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
+    // Supabase Edge Function 経由で Claude API を呼ぶ。
+    // API キーは Edge Function 側 (supabase secrets) に保管され、
+    // クライアント (このアプリ) には含まれない。
+    const { data, error: invokeError } = await supabase.functions.invoke('claude-chat', {
+      body: {
         model: 'claude-haiku-4-5',
         max_tokens: 512,
         system: systemPrompt,
         messages,
-      }),
+      },
     });
 
-    const data = await response.json();
-
-    if (data.error) {
-      return { reply: '', error: data.error.message };
+    if (invokeError) {
+      return { reply: '', error: invokeError.message };
     }
 
-    const reply = data.content?.[0]?.text || '';
+    if (data?.error) {
+      const msg = typeof data.error === 'string' ? data.error : (data.error.message || 'API error');
+      return { reply: '', error: msg };
+    }
+
+    const reply = data?.content?.[0]?.text || '';
 
     // 使用回数を記録（無料ユーザーのみ）
     if (!isPremium) {

@@ -197,7 +197,9 @@ function Slide5Survey({ language, onAnswer }: { language: 'ja' | 'en'; onAnswer:
   const [purpose, setPurpose] = useState('');
   const [ageGroup, setAgeGroup] = useState('');
   const [gender, setGender] = useState('');
-  const [region, setRegion] = useState('');
+  const [residencyType, setResidencyType] = useState<'' | 'resident' | 'visitor'>('');
+  const [residentRegion, setResidentRegion] = useState('');
+  const [visitorCountry, setVisitorCountry] = useState('');
 
   const styleOptions = isJa
     ? [{ v: 'solo', l: '一人旅' }, { v: 'couple', l: 'カップル' }, { v: 'family', l: '家族' }, { v: 'friends', l: '友人グループ' }]
@@ -215,17 +217,63 @@ function Slide5Survey({ language, onAnswer }: { language: 'ja' | 'en'; onAnswer:
     ? [{ v: 'male', l: '男性' }, { v: 'female', l: '女性' }, { v: 'other', l: 'その他' }, { v: 'no_answer', l: '回答しない' }]
     : [{ v: 'male', l: 'Male' }, { v: 'female', l: 'Female' }, { v: 'other', l: 'Other' }, { v: 'no_answer', l: 'No answer' }];
 
-  const regionOptions = isJa
+  // 1.0.5: region 2段階化 — Step 1 (在住/訪日)
+  const residencyOptions = isJa
+    ? [{ v: 'resident', l: '日本在住' }, { v: 'visitor', l: '訪日中' }]
+    : [{ v: 'resident', l: 'Living in Japan' }, { v: 'visitor', l: 'Visiting Japan' }];
+
+  // Step 2-A (在住者向け 日本の地域、'overseas' は除外)
+  const residentRegionOptions = isJa
     ? [
         { v: 'kanto', l: '関東' }, { v: 'kansai', l: '関西' }, { v: 'chubu', l: '中部' },
         { v: 'kyushu', l: '九州' }, { v: 'tohoku', l: '東北' }, { v: 'hokkaido', l: '北海道' },
-        { v: 'chugoku', l: '中国・四国' }, { v: 'overseas', l: '海外' },
+        { v: 'chugoku_shikoku', l: '中国・四国' },
       ]
     : [
         { v: 'kanto', l: 'Kanto' }, { v: 'kansai', l: 'Kansai' }, { v: 'chubu', l: 'Chubu' },
         { v: 'kyushu', l: 'Kyushu' }, { v: 'tohoku', l: 'Tohoku' }, { v: 'hokkaido', l: 'Hokkaido' },
-        { v: 'chugoku', l: 'Chugoku/Shikoku' }, { v: 'overseas', l: 'Overseas' },
+        { v: 'chugoku_shikoku', l: 'Chugoku/Shikoku' },
       ];
+
+  // Step 2-B (訪日者向け 出身国・地域)
+  const visitorCountryOptions = isJa
+    ? [
+        { v: 'us_canada', l: '米国・カナダ' },
+        { v: 'uk', l: '英国' },
+        { v: 'europe_other', l: '欧州（その他）' },
+        { v: 'australia_nz', l: '豪州・NZ' },
+        { v: 'china', l: '中国' },
+        { v: 'taiwan_hk', l: '台湾・香港' },
+        { v: 'korea', l: '韓国' },
+        { v: 'southeast_asia', l: '東南アジア' },
+        { v: 'middle_east', l: '中東' },
+        { v: 'latin_america', l: '中南米' },
+        { v: 'other', l: 'その他' },
+      ]
+    : [
+        { v: 'us_canada', l: 'USA / Canada' },
+        { v: 'uk', l: 'UK' },
+        { v: 'europe_other', l: 'Europe (other)' },
+        { v: 'australia_nz', l: 'Australia / NZ' },
+        { v: 'china', l: 'China' },
+        { v: 'taiwan_hk', l: 'Taiwan / Hong Kong' },
+        { v: 'korea', l: 'Korea' },
+        { v: 'southeast_asia', l: 'Southeast Asia' },
+        { v: 'middle_east', l: 'Middle East' },
+        { v: 'latin_america', l: 'Latin America' },
+        { v: 'other', l: 'Other' },
+      ];
+
+  const handleResidencyChange = (v: 'resident' | 'visitor') => {
+    setResidencyType(v);
+    onAnswer('residency_type', v);
+    // 切替時は逆側の値をクリア（混在防止）
+    if (v === 'resident') {
+      setVisitorCountry('');
+    } else {
+      setResidentRegion('');
+    }
+  };
 
   return (
     <ScrollView
@@ -243,7 +291,9 @@ function Slide5Survey({ language, onAnswer }: { language: 'ja' | 'en'; onAnswer:
         {isJa ? 'あなたについて教えてください' : 'Tell Us About You'}
       </Text>
       <Text style={styles.description}>
-        {isJa ? 'アプリ改善のためご協力ください（任意）' : 'Help us improve the app (optional)'}
+        {isJa
+          ? 'すべて任意 · 答えたくない質問はそのままで OK\n右上「スキップ」でこのページを飛ばせます'
+          : 'All optional · Skip any questions you prefer\nTap "Skip" at the top to skip this page'}
       </Text>
       <View style={[styles.box, { width: '100%' }]}>
         {/* 年代 */}
@@ -268,17 +318,55 @@ function Slide5Survey({ language, onAnswer }: { language: 'ja' | 'en'; onAnswer:
             </TouchableOpacity>
           ))}
         </View>
-        {/* 居住地域 */}
-        <Text style={[styles.surveyQ, { marginTop: 12 }]}>{isJa ? '住んでいる地域' : 'Where you live'}</Text>
+        {/* 1.0.5: 居住タイプ（在住/訪日）— 2段階化 Step 1 */}
+        <Text style={[styles.surveyQ, { marginTop: 12 }]}>
+          {isJa ? '日本に在住していますか？' : 'Are you living in Japan?'}
+        </Text>
         <View style={styles.optionRow}>
-          {regionOptions.map(o => (
+          {residencyOptions.map(o => (
             <TouchableOpacity key={o.v}
-              style={[styles.optionBtn, region === o.v && styles.optionBtnActive]}
-              onPress={() => { setRegion(o.v); onAnswer('region', o.v); }}>
-              <Text style={[styles.optionText, region === o.v && styles.optionTextActive]}>{o.l}</Text>
+              style={[styles.optionBtn, residencyType === o.v && styles.optionBtnActive]}
+              onPress={() => handleResidencyChange(o.v as 'resident' | 'visitor')}>
+              <Text style={[styles.optionText, residencyType === o.v && styles.optionTextActive]}>{o.l}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* 1.0.5: 在住者向け 地域 — 2段階化 Step 2-A */}
+        {residencyType === 'resident' && (
+          <>
+            <Text style={[styles.surveyQ, { marginTop: 12 }]}>
+              {isJa ? 'お住まいの地域' : 'Your region in Japan'}
+            </Text>
+            <View style={styles.optionRow}>
+              {residentRegionOptions.map(o => (
+                <TouchableOpacity key={o.v}
+                  style={[styles.optionBtn, residentRegion === o.v && styles.optionBtnActive]}
+                  onPress={() => { setResidentRegion(o.v); onAnswer('region', o.v); }}>
+                  <Text style={[styles.optionText, residentRegion === o.v && styles.optionTextActive]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* 1.0.5: 訪日者向け 出身地 — 2段階化 Step 2-B */}
+        {residencyType === 'visitor' && (
+          <>
+            <Text style={[styles.surveyQ, { marginTop: 12 }]}>
+              {isJa ? '出身国・地域' : 'Where are you from?'}
+            </Text>
+            <View style={styles.optionRow}>
+              {visitorCountryOptions.map(o => (
+                <TouchableOpacity key={o.v}
+                  style={[styles.optionBtn, visitorCountry === o.v && styles.optionBtnActive]}
+                  onPress={() => { setVisitorCountry(o.v); onAnswer('country', o.v); }}>
+                  <Text style={[styles.optionText, visitorCountry === o.v && styles.optionTextActive]}>{o.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
         {/* 旅行スタイル */}
         <Text style={[styles.surveyQ, { marginTop: 12 }]}>{isJa ? '旅行スタイル' : 'Travel style'}</Text>
         <View style={styles.optionRow}>
@@ -393,7 +481,7 @@ export default function OnboardingScreen({ language, onComplete, isReplay = fals
 
       {/* スライド（FlatList廃止、条件分岐で表示） */}
       <View style={styles.flatList}>
-        {renderSlide({ item: SLIDE_KEYS[currentIndex], index: currentIndex })}
+        {renderSlide({ item: SLIDE_KEYS[currentIndex] })}
       </View>
 
       {/* ページインジケーター */}

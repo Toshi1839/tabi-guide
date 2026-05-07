@@ -66,4 +66,36 @@ export const Analytics = {
   trackAppLaunch() {
     trackEvent('app_launch');
   },
+
+  // ===== 1.0.5: Tonight in Tokyo（音楽ライブセクション）=====
+
+  // 観光/音楽 モード切替
+  trackModeSwitch(mode: 'sightseeing' | 'music') {
+    trackEvent('mode_switch', { mode });
+  },
+
+  // 音楽会場の公式サイト遷移
+  trackMusicScheduleClick(venue: { id: string; name: string; category: string }) {
+    trackEvent('schedule_url_click', venue);
+  },
+
+  // 音楽会場の Maps 遷移
+  trackMusicMapsClick(venue: { id: string; name: string; category: string }) {
+    trackEvent('maps_click', venue);
+  },
+
+  // 音楽会場への電話発信
+  trackMusicCallClick(venue: { id: string; name: string; category: string }) {
+    trackEvent('call_click', venue);
+  },
+
+  // 音楽会場フィルタ操作
+  trackMusicFilter(filters: { distance_km?: number; categories?: string[] }) {
+    trackEvent('music_filter', filters);
+  },
+
+  // 任意イベント（拡張用）
+  trackEvent(eventType: string, eventData: Record<string, any> = {}) {
+    trackEvent(eventType, eventData);
+  },
 };

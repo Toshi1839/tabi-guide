@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { SpotCategory } from '../types';
+import ModeToggle from '../components/ModeToggle';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -28,6 +29,9 @@ interface Props {
   language: 'ja' | 'en';
   onLanguageChange: (lang: 'ja' | 'en') => void;
   onShowGuide?: () => void;
+  // 1.0.5: モードトグル（音楽モードへ切替）
+  appMode?: 'sightseeing' | 'music';
+  onModeChange?: (mode: 'sightseeing' | 'music') => void;
 }
 
 const T = {
@@ -97,7 +101,7 @@ const T = {
   },
 };
 
-export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremium, onPurchase, onAiChatPurchase, onRestorePurchases, language, onLanguageChange, onShowGuide }: Props) {
+export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremium, onPurchase, onAiChatPurchase, onRestorePurchases, language, onLanguageChange, onShowGuide, appMode, onModeChange }: Props) {
   const t = T[language];
   const [selected, setSelected] = useState<Set<SpotCategory>>(new Set());
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
@@ -176,6 +180,10 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* 1.0.5: 観光モード/音楽モード トグル（プロップ渡された場合のみ表示）*/}
+      {appMode && onModeChange && (
+        <ModeToggle mode={appMode} onChange={onModeChange} language={language} />
+      )}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={styles.appName}>{t.appName}</Text>

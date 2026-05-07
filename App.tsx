@@ -18,8 +18,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SpotCategory } from './src/types';
 import CategorySelectScreen from './src/screens/CategorySelectScreen';
 import GuideScreen from './src/screens/GuideScreen';
+import MusicVenuesScreen from './src/screens/MusicVenuesScreen';
 import OnboardingScreen, { ONBOARDING_KEY } from './src/screens/OnboardingScreen';
 import { Analytics } from './src/services/analytics';
+import { AppMode, loadAppMode, saveAppMode } from './src/services/app-mode';
 import {
   initIAP,
   closeIAP,
@@ -43,10 +45,21 @@ export default function App() {
   const [isAiChatPremium, setIsAiChatPremium] = useState(false);
   const [language, setLanguage] = useState<'ja' | 'en'>(getDeviceLanguage());
   const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [appMode, setAppMode] = useState<AppMode>('sightseeing');
+
+  // モード切替（永続化 + アナリティクス）
+  const handleModeChange = (mode: AppMode) => {
+    setAppMode(mode);
+    saveAppMode(mode);
+    Analytics.trackModeSwitch(mode);
+  };
 
   useEffect(() => {
     // アプリ起動トラッキング
     Analytics.trackAppLaunch();
+
+    // モード復元
+    loadAppMode().then(setAppMode);
 
     // オンボーディング完了チェック
     AsyncStorage.getItem(ONBOARDING_KEY).then(val => {
@@ -159,21 +172,43 @@ export default function App() {
 
   if (!onboardingChecked) return null;
 
+  // オンボーディング系は既存のまま（モード非依存）
+  if (screen === 'onboarding') {
+    return (
+      <>
+        <StatusBar style="auto" />
+        <OnboardingScreen language={language} onComplete={() => setScreen('category')} />
+      </>
+    );
+  }
+  if (screen === 'onboarding_replay') {
+    return (
+      <>
+        <StatusBar style="auto" />
+        <OnboardingScreen language={language} onComplete={() => setScreen('category')} isReplay />
+      </>
+    );
+  }
+
+  // 音楽モード時は MusicVenuesScreen を表示（observation/sightseeing 状態とは独立）
+  if (appMode === 'music') {
+    return (
+      <>
+        <StatusBar style="auto" />
+        <MusicVenuesScreen
+          language={language}
+          appMode={appMode}
+          onModeChange={handleModeChange}
+        />
+      </>
+    );
+  }
+
+  // 観光モード（既存フロー: category → guide）
   return (
     <>
       <StatusBar style="auto" />
-      {screen === 'onboarding' ? (
-        <OnboardingScreen
-          language={language}
-          onComplete={() => setScreen('category')}
-        />
-      ) : screen === 'onboarding_replay' ? (
-        <OnboardingScreen
-          language={language}
-          onComplete={() => setScreen('category')}
-          isReplay
-        />
-      ) : screen === 'category' ? (
+      {screen === 'category' ? (
         <CategorySelectScreen
           onStart={handleStart}
           isPremium={isGourmetPremium}
@@ -184,6 +219,8 @@ export default function App() {
           language={language}
           onLanguageChange={setLanguage}
           onShowGuide={() => setScreen('onboarding_replay')}
+          appMode={appMode}
+          onModeChange={handleModeChange}
         />
       ) : (
         <GuideScreen

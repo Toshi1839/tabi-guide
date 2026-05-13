@@ -90,7 +90,7 @@ export const Analytics = {
   },
 
   // 音楽会場フィルタ操作
-  trackMusicFilter(filters: { distance_km?: number; categories?: string[] }) {
+  trackMusicFilter(filters: { distance_km?: number; categories?: string[]; tonight_only?: boolean }) {
     trackEvent('music_filter', filters);
   },
 

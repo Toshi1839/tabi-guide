@@ -24,11 +24,11 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   Modal,
   ScrollView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import ModeToggle from '../components/ModeToggle';
 import { Analytics } from '../services/analytics';
@@ -58,6 +58,14 @@ const DISTANCE_OPTIONS: { value: DistanceFilter; labelJa: string; labelEn: strin
   { value: -1, labelJa: '全て', labelEn: 'All' },
 ];
 
+// 「Tonight Only」フィルタ対象 — 「今夜行けば音楽体験できる」確実性が高いカテゴリ
+//   jazz_live: ほぼ毎晩ライブ演奏あり (Pit Inn, Body & Soul 等)
+//   vinyl_bar: バー営業中は録音盤を流す音楽体験を提供
+// 除外:
+//   live_house: ブッキング次第で空き日多い
+//   classical / free_concert / hougaku: 公演日のみ
+const TONIGHT_CATEGORIES: MusicCategory[] = ['jazz_live', 'vinyl_bar'];
+
 // 東京駅のおおよそ（位置情報未取得時のフォールバック）
 const FALLBACK_LAT = 35.6812;
 const FALLBACK_LNG = 139.7671;
@@ -72,6 +80,7 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
   const [distanceFilter, setDistanceFilter] = useState<DistanceFilter>(30000);
   const [selectedCategories, setSelectedCategories] = useState<MusicCategory[]>([]);
   const [selectedVenue, setSelectedVenue] = useState<MusicVenue | null>(null);
+  const [tonightOnly, setTonightOnly] = useState<boolean>(true); // デフォルト ON
 
   // 位置情報取得
   useEffect(() => {
@@ -92,17 +101,29 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
   }, []);
 
   // 会場取得
+  // 適用ロジック:
+  //   - tonightOnly=true: TONIGHT_CATEGORIES に絞る（さらにユーザーが手動でカテゴリ絞り込みしていればその交差）
+  //   - tonightOnly=false: ユーザー選択のカテゴリ（空なら全て）
   const loadVenues = useCallback(async () => {
     const radius = distanceFilter === -1 ? 200000 : distanceFilter; // All = 200km（東京近郊網羅）
+
+    let effectiveCategories: MusicCategory[] | undefined;
+    if (tonightOnly) {
+      const userPicked = selectedCategories.filter(c => TONIGHT_CATEGORIES.includes(c));
+      effectiveCategories = userPicked.length > 0 ? userPicked : TONIGHT_CATEGORIES;
+    } else {
+      effectiveCategories = selectedCategories.length > 0 ? selectedCategories : undefined;
+    }
+
     const data = await fetchNearbyMusicVenues({
       userLat,
       userLng,
       radiusMeters: radius,
-      categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+      categories: effectiveCategories,
       limit: 200,
     });
     setVenues(data);
-  }, [userLat, userLng, distanceFilter, selectedCategories]);
+  }, [userLat, userLng, distanceFilter, selectedCategories, tonightOnly]);
 
   useEffect(() => {
     if (!locationReady) return;
@@ -116,8 +137,9 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
     Analytics.trackMusicFilter({
       distance_km: distanceFilter === -1 ? -1 : distanceFilter / 1000,
       categories: selectedCategories,
+      tonight_only: tonightOnly,
     });
-  }, [distanceFilter, selectedCategories, locationReady]);
+  }, [distanceFilter, selectedCategories, tonightOnly, locationReady]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -130,6 +152,10 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
     );
   };
+
+  const headerTitle = tonightOnly
+    ? (language === 'en' ? 'Open Tonight' : '今夜営業中')
+    : (language === 'en' ? 'All Music Venues' : '全ての音楽会場');
 
   const headerSubtitle = useMemo(() => {
     if (loading) return language === 'en' ? 'Loading…' : '読み込み中…';
@@ -145,6 +171,11 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
       ? `${count} venues, ${distLabel}`
       : `${count}件の会場（${distLabel}）`;
   }, [loading, venues.length, distanceFilter, language]);
+
+  // Tonight Only 時に表示するカテゴリチップ（jazz_live + vinyl_bar のみ）
+  const visibleCategoryChips = tonightOnly
+    ? ALL_MUSIC_CATEGORIES.filter(c => TONIGHT_CATEGORIES.includes(c))
+    : ALL_MUSIC_CATEGORIES;
 
   const renderVenue = ({ item }: { item: MusicVenue }) => {
     const name = language === 'en' ? item.name_en : item.name;
@@ -167,12 +198,33 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ModeToggle mode={appMode} onChange={onModeChange} language={language} />
 
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tonight in Tokyo</Text>
-        <Text style={styles.headerSubtitle}>{headerSubtitle}</Text>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.headerTitle}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {headerTitle}
+          </Text>
+          {/* Tonight Only トグル */}
+          <TouchableOpacity
+            style={[styles.tonightToggle, tonightOnly && styles.tonightToggleActive]}
+            onPress={() => setTonightOnly(v => !v)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: tonightOnly }}
+          >
+            <Text style={[styles.tonightToggleText, tonightOnly && styles.tonightToggleTextActive]}>
+              {tonightOnly
+                ? (language === 'en' ? '✓ Tonight' : '✓ 今夜')
+                : (language === 'en' ? 'Tonight' : '今夜')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.headerSubtitle} numberOfLines={1}>{headerSubtitle}</Text>
       </View>
 
       {/* 距離フィルタ */}
@@ -194,13 +246,13 @@ export default function MusicVenuesScreen({ language, appMode, onModeChange }: P
         ))}
       </ScrollView>
 
-      {/* カテゴリフィルタ */}
+      {/* カテゴリフィルタ — Tonight Only 中は jazz_live + vinyl_bar のみ表示 */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterRow}
       >
-        {ALL_MUSIC_CATEGORIES.map(cat => {
+        {visibleCategoryChips.map(cat => {
           const active = selectedCategories.includes(cat);
           return (
             <TouchableOpacity
@@ -379,8 +431,28 @@ function VenueDetailModal({ venue, language, onClose }: ModalProps) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F7F8FA' },
   header: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
-  headerTitle: { fontSize: 22, fontWeight: '700', color: '#1A2230' },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#1A2230', flexShrink: 1 },
   headerSubtitle: { fontSize: 13, color: '#7A8492', marginTop: 4 },
+  tonightToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#EEF1F5',
+    borderWidth: 1,
+    borderColor: '#D7DCE2',
+  },
+  tonightToggleActive: {
+    backgroundColor: '#1A2230',
+    borderColor: '#1A2230',
+  },
+  tonightToggleText: { fontSize: 12, fontWeight: '600', color: '#52606D' },
+  tonightToggleTextActive: { color: '#FFFFFF' },
   filterRow: { paddingHorizontal: 12, paddingVertical: 6, gap: 8 },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16,

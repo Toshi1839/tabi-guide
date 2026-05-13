@@ -16,6 +16,7 @@ import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { SpotCategory } from '../types';
 import ModeToggle from '../components/ModeToggle';
 import SampleTourScreen from './SampleTourScreen';
+import BrowseScreen from './BrowseScreen';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -109,6 +110,8 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
   // 1.0.5: Sample Tour Screen の表示状態（位置情報なしで音声試聴できる体験）
   const [showSampleTour, setShowSampleTour] = useState(false);
+  // 1.0.5: Browse Screen の表示状態（位置情報なしでスポット一覧閲覧可能）
+  const [showBrowse, setShowBrowse] = useState(false);
 
   const toggle = (id: SpotCategory) => {
     setSelected((prev) => {
@@ -224,6 +227,28 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
             </Text>
           </View>
           <Text style={styles.sampleTourChevron}>›</Text>
+        </TouchableOpacity>
+
+        {/* 1.0.5: Browse 訴求バナー（位置情報なしでスポット閲覧）*/}
+        <TouchableOpacity
+          style={styles.browseBanner}
+          onPress={() => setShowBrowse(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.browseIcon}>
+            <Text style={styles.browseEmoji}>📚</Text>
+          </View>
+          <View style={styles.browseBody}>
+            <Text style={styles.browseTitle}>
+              {language === 'en' ? 'Browse All Sites' : '一覧から探す'}
+            </Text>
+            <Text style={styles.browseSubtitle} numberOfLines={2}>
+              {language === 'en'
+                ? 'Explore Japan by city or category — perfect for trip planning'
+                : '都市・カテゴリ別にスポットを閲覧。旅行前の下調べに'}
+            </Text>
+          </View>
+          <Text style={styles.browseChevron}>›</Text>
         </TouchableOpacity>
 
         {/* 通常カテゴリ */}
@@ -402,6 +427,19 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
           onClose={() => setShowSampleTour(false)}
         />
       </Modal>
+
+      {/* 1.0.5: Browse All Sites 全画面モーダル */}
+      <Modal
+        visible={showBrowse}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowBrowse(false)}
+      >
+        <BrowseScreen
+          language={language}
+          onClose={() => setShowBrowse(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -437,6 +475,32 @@ const styles = StyleSheet.create({
   sampleTourTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
   sampleTourSubtitle: { fontSize: 12, color: '#A6B0C2', marginTop: 4, lineHeight: 16 },
   sampleTourChevron: { fontSize: 28, color: '#A6B0C2', marginLeft: 6 },
+  // 1.0.5: Browse バナー
+  browseBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#3b4760',
+  },
+  browseIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  browseEmoji: { fontSize: 28 },
+  browseBody: { flex: 1, marginLeft: 12 },
+  browseTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  browseSubtitle: { fontSize: 12, color: '#A6B0C2', marginTop: 4, lineHeight: 16 },
+  browseChevron: { fontSize: 28, color: '#A6B0C2', marginLeft: 6 },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,

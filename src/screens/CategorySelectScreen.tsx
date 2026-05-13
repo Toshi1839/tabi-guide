@@ -10,10 +10,12 @@ import {
   ScrollView,
   Alert,
   Linking,
+  Modal,
 } from 'react-native';
 import { CATEGORIES, RESTAURANT_GENRES } from '../data/categories';
 import { SpotCategory } from '../types';
 import ModeToggle from '../components/ModeToggle';
+import SampleTourScreen from './SampleTourScreen';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -105,6 +107,8 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
   const t = T[language];
   const [selected, setSelected] = useState<Set<SpotCategory>>(new Set());
   const [selectedGenres, setSelectedGenres] = useState<Set<string>>(new Set());
+  // 1.0.5: Sample Tour Screen の表示状態（位置情報なしで音声試聴できる体験）
+  const [showSampleTour, setShowSampleTour] = useState(false);
 
   const toggle = (id: SpotCategory) => {
     setSelected((prev) => {
@@ -200,6 +204,28 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* 1.0.5: Sample Tour 訴求バナー（リテンション改善の主軸）*/}
+        <TouchableOpacity
+          style={styles.sampleTourBanner}
+          onPress={() => setShowSampleTour(true)}
+          activeOpacity={0.85}
+        >
+          <View style={styles.sampleTourIcon}>
+            <Text style={styles.sampleTourEmoji}>🎧</Text>
+          </View>
+          <View style={styles.sampleTourBody}>
+            <Text style={styles.sampleTourTitle}>
+              {language === 'en' ? 'Try a Sample Tour' : 'サンプル音声ガイドを試聴'}
+            </Text>
+            <Text style={styles.sampleTourSubtitle} numberOfLines={2}>
+              {language === 'en'
+                ? "Hear what tabi-guide sounds like — Japan's top 5 sites, no location needed"
+                : '日本の代表5スポットを試聴。位置情報なしで再生可能'}
+            </Text>
+          </View>
+          <Text style={styles.sampleTourChevron}>›</Text>
+        </TouchableOpacity>
+
         {/* 通常カテゴリ */}
         <View style={styles.selectAllRow}>
           <TouchableOpacity onPress={selectAll} style={styles.selectAllButton}>
@@ -363,6 +389,19 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
           )}
         </TouchableOpacity>
       </View>
+
+      {/* 1.0.5: Sample Tour 全画面モーダル */}
+      <Modal
+        visible={showSampleTour}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowSampleTour(false)}
+      >
+        <SampleTourScreen
+          language={language}
+          onClose={() => setShowSampleTour(false)}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -372,6 +411,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f172a',
   },
+  // 1.0.5: Sample Tour 訴求バナー
+  sampleTourBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 4,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#3b4760',
+  },
+  sampleTourIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#4361ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleTourEmoji: { fontSize: 28 },
+  sampleTourBody: { flex: 1, marginLeft: 12 },
+  sampleTourTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  sampleTourSubtitle: { fontSize: 12, color: '#A6B0C2', marginTop: 4, lineHeight: 16 },
+  sampleTourChevron: { fontSize: 28, color: '#A6B0C2', marginLeft: 6 },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,

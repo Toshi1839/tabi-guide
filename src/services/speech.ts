@@ -2,6 +2,7 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
 import { convertToSpeechText } from './speech-dict';
+import { onAudioPlay, maybeRequestReview } from './review-prompter';
 
 let currentSound: Audio.Sound | null = null;
 
@@ -10,6 +11,9 @@ export const SpeechService = {
   async speak(text: string, language: 'ja' | 'en' = 'ja', audioUrl?: string): Promise<void> {
     // 既存の音声を停止
     await this.stop();
+
+    // 1.0.5: 音声再生回数をカウント（レビュー誘導の閾値判定用）
+    onAudioPlay();
 
     // audio_urlがある場合はWaveNet MP3を再生
     if (audioUrl && language === 'ja') {
@@ -27,6 +31,8 @@ export const SpeechService = {
           if (status.isLoaded && status.didJustFinish) {
             sound.unloadAsync();
             currentSound = null;
+            // 1.0.5: 完了時にレビュー誘導判定（成功体験直後）
+            maybeRequestReview();
           }
         });
         return;
@@ -60,6 +66,8 @@ export const SpeechService = {
       rate: 1.0,
       pitch: 0.9,
       ...(voiceId ? { voice: voiceId } : {}),
+      // 1.0.5: 完了時にレビュー誘導判定（成功体験直後）
+      onDone: () => { maybeRequestReview(); },
     });
   },
 

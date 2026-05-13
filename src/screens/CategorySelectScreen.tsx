@@ -17,6 +17,7 @@ import { SpotCategory } from '../types';
 import ModeToggle from '../components/ModeToggle';
 import SampleTourScreen from './SampleTourScreen';
 import BrowseScreen from './BrowseScreen';
+import FeedbackMenu from '../components/FeedbackMenu';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -112,6 +113,8 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
   const [showSampleTour, setShowSampleTour] = useState(false);
   // 1.0.5: Browse Screen の表示状態（位置情報なしでスポット一覧閲覧可能）
   const [showBrowse, setShowBrowse] = useState(false);
+  // 1.0.5: フィードバックメニュー（★アプリ評価／問い合わせ／バグ報告）
+  const [showFeedback, setShowFeedback] = useState(false);
 
   const toggle = (id: SpotCategory) => {
     setSelected((prev) => {
@@ -200,6 +203,10 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
                 <Text style={styles.guideButtonText}>?</Text>
               </TouchableOpacity>
             )}
+            {/* 1.0.5: フィードバックメニュー */}
+            <TouchableOpacity style={styles.feedbackButton} onPress={() => setShowFeedback(true)}>
+              <Text style={styles.feedbackButtonText}>✉️</Text>
+            </TouchableOpacity>
           </View>
         </View>
         <Text style={styles.title}>{t.title}</Text>
@@ -440,6 +447,13 @@ export default function CategorySelectScreen({ onStart, isPremium, isAiChatPremi
           onClose={() => setShowBrowse(false)}
         />
       </Modal>
+
+      {/* 1.0.5: フィードバックメニュー */}
+      <FeedbackMenu
+        visible={showFeedback}
+        onClose={() => setShowFeedback(false)}
+        language={language}
+      />
     </SafeAreaView>
   );
 }
@@ -501,6 +515,17 @@ const styles = StyleSheet.create({
   browseTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
   browseSubtitle: { fontSize: 12, color: '#A6B0C2', marginTop: 4, lineHeight: 16 },
   browseChevron: { fontSize: 28, color: '#A6B0C2', marginLeft: 6 },
+  // 1.0.5: フィードバックボタン (ヘッダー右上、? ボタンの隣)
+  feedbackButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  feedbackButtonText: { fontSize: 14 },
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,

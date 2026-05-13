@@ -23,6 +23,9 @@ import GuideScreen from './src/screens/GuideScreen';
 import OnboardingScreen, { ONBOARDING_KEY } from './src/screens/OnboardingScreen';
 import { Analytics } from './src/services/analytics';
 // import { AppMode, loadAppMode, saveAppMode } from './src/services/app-mode';
+import { onAppLaunch, onAppBackground } from './src/services/review-prompter';
+import InAppSurvey from './src/components/InAppSurvey';
+import { AppState } from 'react-native';
 import {
   initIAP,
   closeIAP,
@@ -58,6 +61,19 @@ export default function App() {
   useEffect(() => {
     // アプリ起動トラッキング
     Analytics.trackAppLaunch();
+
+    // 1.0.5: レビュー誘導用の起動カウンタを加算
+    onAppLaunch();
+
+    // AppState 監視（バックグラウンド遷移時にセッション時間を累積）
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') {
+        onAppBackground();
+      } else if (state === 'active') {
+        // フォアグラウンド復帰時に新セッション開始扱い
+        onAppLaunch();
+      }
+    });
 
     // 音楽セクション非表示化に伴いモード復元はスキップ（1.0.5）
     // loadAppMode().then(setAppMode);
@@ -124,6 +140,7 @@ export default function App() {
 
     return () => {
       closeIAP();
+      sub.remove();
     };
   }, []);
 
@@ -233,6 +250,8 @@ export default function App() {
           language={language}
         />
       )}
+      {/* 1.0.5: 起動 10 回目に表示する継続アンケート（カテゴリ画面表示中のみ） */}
+      {screen === 'category' && <InAppSurvey language={language} />}
     </>
   );
 }
